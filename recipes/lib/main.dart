@@ -1,19 +1,19 @@
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // 1. Import Riverpod
+import 'router.dart'; // 2. Import the router we created
 
 Future<void> main() async {
-  // 1. Prepare Flutter to run async code
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 2. Connect to Supabase
   await Supabase.initialize(
+    // Keep your actual keys here!
     url: 'https://usfrnaywpgtfgqodzqsn.supabase.co', 
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzZnJuYXl3cGd0Zmdxb2R6cXNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwMzY2OTUsImV4cCI6MjA4MDYxMjY5NX0.Hjd7exAONRd9zMj_s24oqHqSB6Wr1MNSM3dWB7dEDNI',
   );
 
-  // 3. Start the App
-  runApp(const MyApp());
+  // 3. Wrap MyApp with ProviderScope so the whole app can use Providers
+  runApp(const ProviderScope(child: MyApp()));
 }
 
 class MyApp extends StatelessWidget {
@@ -21,15 +21,14 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    // 4. Use .router instead of standard MaterialApp
+    return MaterialApp.router(
+      routerConfig: router, // Connects to the logic in router.dart
       debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        body: Center(
-          child: Text(
-            'Supabase is Connected!', 
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-        ),
+      title: 'Rezepte App',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
+        useMaterial3: true,
       ),
     );
   }

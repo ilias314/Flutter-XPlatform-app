@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:recipes/widgets/bottom_navbar.dart'; // Import your custom widget
+// Import your screens
+import 'package:recipes/pages/home_screen.dart';
+import 'package:recipes/pages/profile_screen.dart';
 
 class MainScaffold extends StatefulWidget {
   const MainScaffold({super.key});
@@ -11,44 +14,40 @@ class MainScaffold extends StatefulWidget {
 class _MainScaffoldState extends State<MainScaffold> {
   int _selectedIndex = 0;
 
+  // Define the 5 Screens matching your BottomNavBar items
+  final List<Widget> _pages = [
+    // Index 0: Home
+    const StartseitePages(), 
+    
+    // Index 1: Wochenplan
+    const Center(child: Text('Wochenplan Screen')), 
+    
+    // Index 2: Neues Rezept (Add Recipe)
+    const Center(child: Text('Neues Rezept Screen')), 
+    
+    // Index 3: Einkaufsliste
+    const Center(child: Text('Einkaufsliste Screen')),
+    
+    // Index 4: Profil
+    const ProfileScreen(), 
+  ];
+
+  void _onTabChange(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Rezepte App")),
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: const [
-          Center(child: Text("Home Feed")),
-          Center(child: Text("Weekly Plan")),
-          Center(child: Text("Shopping List")),
-          Center(child: Text("Profile")),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.restaurant_menu),
-            label: 'Rezepte',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.calendar_today),
-            label: 'Plan',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.shopping_cart),
-            label: 'Einkauf',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person),
-            label: 'Profil',
-          ),
-        ],
+      // This switches the body content based on the index
+      body: _pages[_selectedIndex],
+
+      // ⭐ Use your custom widget here!
+      bottomNavigationBar: AppBottomNavBar(
+        currentIndex: _selectedIndex,
+        onTapped: _onTabChange,
       ),
     );
   }

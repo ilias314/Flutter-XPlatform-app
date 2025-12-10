@@ -1,35 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '/data/auth_repository.dart'; // Import your Auth Repository
+import '/data/auth_repository.dart'; 
 import 'package:recipes/widgets/recipe_section.dart';
+import 'package:recipes/widgets/ui_utils.dart';
+
+// Enum für die Auswahlmöglichkeiten
+enum DishPreference { allesfresser, pescetarisch, vegetarisch, vegan }
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
+
   @override
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  // Dummy-Status für die Checkboxen (nur für die UI-Demo)
-  bool _isVegan = false;
-  bool _isVegetarian = false;
-  bool _isPescetarian = false;
+  // Standard-Auswahl
+  DishPreference _currentPreference = DishPreference.allesfresser;
+  
+  // Dummy-Status für den Dark Mode (nur für die UI-Demo)
+  bool _isDarkMode = false; 
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Profil"),
-        
+        centerTitle: false,
         actions: [
-          // Das Zahnrad-Icon oben rechts (laut Skizze)
+          // ---------------------------------------------------
+          // DAS ZAHNRAD (Öffnet jetzt die Einstellungen)
+          // ---------------------------------------------------
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () {
-              // Hier Logik für Navigation zu Einstellungen / Profil löschen
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Zu den Einstellungen...")),
-              );
+              _showSettingsSheet(context);
             },
           )
         ],
@@ -40,21 +45,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             const SizedBox(height: 20),
             
             // ------------------------------------------
-            // TEIL 1: NAME & PROFIL BEARBEITEN
+            // TEIL 1: HEADER & BEARBEITEN
             // ------------------------------------------
             const Text(
-              "Name", // Hier später dynamischen User-Namen einfügen
+              "Dein Name", 
               style: TextStyle(fontSize: 28, fontWeight: FontWeight.w300),
             ),
+            
             const SizedBox(height: 8),
             
-            // Der "Profil bearbeiten" Button (Pill Shape)
             OutlinedButton(
-              onPressed: () {
-                 // Logik zum Bearbeiten
-              },
+              onPressed: () => _showEditProfileSheet(context),
               style: OutlinedButton.styleFrom(
-                shape: const StadiumBorder(), // Macht den Button rund wie auf der Skizze
+                shape: const StadiumBorder(),
                 side: const BorderSide(color: Color.fromARGB(255, 102, 99, 99)),
               ),
               child: const Row(
@@ -70,16 +73,84 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             const SizedBox(height: 20),
 
             // ------------------------------------------
-            // TEIL 2: ERNÄHRUNGS-CHECKBOXEN
+            // TEIL 2: ERNÄHRUNGSWEISE (Dropdown)
             // ------------------------------------------
-            // Wir nutzen Padding, damit es nicht am Rand klebt
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40.0),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildCheckboxRow("Vegan", _isVegan, (v) => setState(() => _isVegan = v!)),
-                  _buildCheckboxRow("Vegetarisch", _isVegetarian, (v) => setState(() => _isVegetarian = v!)),
-                  _buildCheckboxRow("Pescetarier", _isPescetarian, (v) => setState(() => _isPescetarian = v!)),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 4.0, bottom: 8.0),
+                    child: Text(
+                      'Deine Ernährungsweise:',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey, width: 1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<DishPreference>(
+                        value: _currentPreference,
+                        isExpanded: true,
+                        icon: const Icon(Icons.arrow_drop_down_circle_outlined),
+                        items: const [
+                          DropdownMenuItem(
+                            value: DishPreference.allesfresser,
+                            child: Row(
+                              children: [
+                                Icon(Icons.restaurant, size: 20), 
+                                SizedBox(width: 10), 
+                                Text("Alles") // Hier steht jetzt nur "Alles"
+                              ],
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: DishPreference.pescetarisch,
+                            child: Row(
+                              children: [
+                                Icon(Icons.set_meal, size: 20), 
+                                SizedBox(width: 10), 
+                                Text("Pescetarier")
+                              ],
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: DishPreference.vegetarisch,
+                            child: Row(
+                              children: [
+                                Icon(Icons.grass, size: 20), 
+                                SizedBox(width: 10), 
+                                Text("Vegetarisch")
+                              ],
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: DishPreference.vegan,
+                            child: Row(
+                              children: [
+                                Icon(Icons.eco, size: 20), 
+                                SizedBox(width: 10), 
+                                Text("Vegan")
+                              ],
+                            ),
+                          ),
+                        ],
+                        onChanged: (DishPreference? newValue) {
+                          if (newValue != null) {
+                            setState(() {
+                              _currentPreference = newValue;
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -87,65 +158,131 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             const SizedBox(height: 40),
 
             // ------------------------------------------
-            // TEIL 3: REZEPTE (Wiederverwendung von Startseite)
+            // TEIL 3: REZEPTE
             // ------------------------------------------
-
-          // 1. Favoriten Sektion
-
             const RecipeSection(title: "Favoriten"),
-            
             const SizedBox(height: 40),
-
-            // 2. Meine Rezepte Sektion
             const RecipeSection(title: "Meine Rezepte"),
-
-           
-            const SizedBox(height: 40),  
-
-            // ------------------------------------------
-            // TEIL 4: LOGOUT BUTTON (Dein existierender Code)
-            // ------------------------------------------
-            Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 50), // Breiter Button
-                ),
-                icon: const Icon(Icons.logout),
-                label: const Text("Sign Out"),
-                onPressed: () async {
-                  await ref.read(authRepositoryProvider).signOut();
-                },
-              ),
-            ),
             
-            const SizedBox(height: 20),
+            const SizedBox(height: 40),  
           ],
         ),
       ),
     );
   }
 
-  // Kleines Hilfs-Widget um die Checkbox-Reihen wie auf der Skizze zu bauen
-  Widget _buildCheckboxRow(String label, bool value, ValueChanged<bool?> onChanged) {
-    return Row(
-      children: [
-        Transform.scale(
-          scale: 1.1, // Checkboxen etwas größer machen
-          child: Checkbox(
-            value: value,
-            onChanged: onChanged,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-            activeColor: const Color.fromARGB(255, 9, 20, 172), 
+  // ---------------------------------------------------
+  // FUNKTION 1: PROFIL BEARBEITEN (Name, Bild, Email)
+  // ---------------------------------------------------
+  void _showEditProfileSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom, top: 20, left: 20, right: 20
           ),
-        ),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 16),
-        ),
-      ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
+              const SizedBox(height: 20),
+              const Text("Profil bearbeiten", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  const CircleAvatar(radius: 50, backgroundColor: Colors.grey, child: Icon(Icons.person, size: 60, color: Colors.white)),
+                  Container(
+                    decoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
+                    child: IconButton(icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20), onPressed: () => showNotImplementedSnackbar(context)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 30),
+              ListTile(
+                leading: const Icon(Icons.email_outlined), title: const Text('E-Mail ändern'), onTap: () => showNotImplementedSnackbar(context),
+              ),
+              ListTile(
+                leading: const Icon(Icons.lock_outline), title: const Text('Passwort ändern'), onTap: () => showNotImplementedSnackbar(context),
+              ),
+              const SizedBox(height: 40),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ---------------------------------------------------
+  // FUNKTION 2: EINSTELLUNGEN (Sign Out, Delete, Dark Mode)
+  // ---------------------------------------------------
+  void _showSettingsSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        // StatefulBuilder sorgt dafür, dass der Switch sich bewegt
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setSheetState) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
+                  const SizedBox(height: 20),
+                  
+                  const Text("Einstellungen", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 20),
+
+                  // 1. Dark Mode Switch
+                  SwitchListTile(
+                    // FIX 1: Prüfen ob null, sonst false nehmen
+                    secondary: Icon((_isDarkMode ?? false) ? Icons.dark_mode : Icons.light_mode),
+                    title: const Text("Dark Mode"),
+                    // FIX 2: Auch hier: Wenn null, dann false
+                    value: _isDarkMode ?? false,
+                    onChanged: (bool value) {
+                      setSheetState(() {
+                        _isDarkMode = value;
+                      });
+                    },
+                  ),
+
+                  const Divider(),
+
+                  // 2. Sign Out
+                  ListTile(
+                    leading: const Icon(Icons.logout),
+                    title: const Text("Abmelden"),
+                    onTap: () async {
+                      Navigator.pop(context); // Schließt das Menü
+                      await ref.read(authRepositoryProvider).signOut();
+                    },
+                  ),
+
+                  const Divider(),
+
+                  // 3. Profil löschen
+                  ListTile(
+                    leading: const Icon(Icons.delete_forever, color: Colors.red),
+                    title: const Text("Profil löschen", style: TextStyle(color: Colors.red)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      showNotImplementedSnackbar(context); 
+                    },
+                  ),
+                  
+                  const SizedBox(height: 30),
+                ],
+              ),
+            );
+          }
+        );
+      },
     );
   }
 }

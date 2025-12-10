@@ -42,16 +42,55 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            const SizedBox(height: 20),
+            const SizedBox(height: 30),
+
+
+            // ------------------------------------------
+            // NEU: PROFILBILD ÜBER DEM NAMEN
+            // ------------------------------------------
+            Center(
+              child: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  // Das eigentliche Bild (Platzhalter)
+                  const CircleAvatar(
+                    radius: 60, // Größe des Bildes
+                    backgroundColor: Colors.grey,
+                    // Später hier: backgroundImage: NetworkImage(user.photoUrl),
+                    child: Icon(Icons.person, size: 80, color: Colors.white),
+                  ),
+                  
+                  // Optional: Kleiner Edit-Button direkt am Bild
+                  Container(
+                    height: 35,
+                    width: 35,
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                      onPressed: () => _showEditProfileSheet(context),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 10),
             
             // ------------------------------------------
             // TEIL 1: NAME & PROFIL BEARBEITEN (Responsive)
             // ------------------------------------------
             const Text(
-              "Dein Name", 
+              "UserName", 
               style: TextStyle(fontSize: 28, fontWeight: FontWeight.w300),
             ),
-            const SizedBox(height: 15),
+            
+            
+            const SizedBox(height: 20),
             
             // RESPONSIVE LÖSUNG: Padding bestimmt die Breite
             Padding(
@@ -180,13 +219,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ),
 
-            const SizedBox(height: 40),
+            const SizedBox(height: 50),
 
             // ------------------------------------------
             // TEIL 3: REZEPTE
             // ------------------------------------------
             const RecipeSection(title: "Favoriten"),
-            const SizedBox(height: 40),
+            
+            const SizedBox(height: 50),
+            
             const RecipeSection(title: "Meine Rezepte"),
             
             const SizedBox(height: 40),  

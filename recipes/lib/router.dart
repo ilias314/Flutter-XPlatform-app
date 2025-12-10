@@ -11,7 +11,7 @@ import 'pages/register_screen.dart';
 final router = GoRouter(
   initialLocation: '/',
   
-  // ⚡️ CRITICAL ADDITION: This forces the router to re-evaluate 
+  //  CRITICAL ADDITION: This forces the router to re-evaluate 
   // the 'redirect' logic immediately when the user logs in or out.
   refreshListenable: GoRouterRefreshStream(Supabase.instance.client.auth.onAuthStateChange),
 
@@ -54,7 +54,7 @@ final router = GoRouter(
   },
 );
 
-// 🛠️ HELPER CLASS
+//  HELPER CLASS
 // This converts the Supabase Stream into something GoRouter can listen to.
 class GoRouterRefreshStream extends ChangeNotifier {
   late final StreamSubscription<AuthState> _subscription;

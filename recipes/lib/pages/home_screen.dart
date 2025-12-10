@@ -26,7 +26,7 @@ class _StartseitePagesState extends State<StartseitePages> {
         title: const Text('RecipeS'),
         centerTitle: true,
         actions: <Widget>[
-          // Icône de recherche
+          
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () => showNotImplementedSnackbar(context), 

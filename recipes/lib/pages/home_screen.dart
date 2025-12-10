@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:recipes/widgets/ui_utils.dart'; 
 import 'package:recipes/widgets/recipe_section.dart'; 
 import 'package:recipes/widgets/bottom_navbar.dart'; 
+import 'package:go_router/go_router.dart';
+
 
 class StartseitePages extends StatefulWidget {
   const StartseitePages({super.key});
@@ -27,9 +29,15 @@ class _StartseitePagesState extends State<StartseitePages> {
         centerTitle: true,
         actions: <Widget>[
           // Icône de recherche
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () => showNotImplementedSnackbar(context), 
+          Hero(
+            tag: 'search-bar',
+            child: Material(
+              color: Colors.transparent,
+              child: IconButton(
+                icon: const Icon(Icons.search),
+                onPressed: () => context.go('/search'),
+              ),
+            ),
           ),
         ],
       ),

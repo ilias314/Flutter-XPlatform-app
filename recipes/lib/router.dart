@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async'; // Required for the stream listener
+import 'pages/search_screen.dart';
+import 'pages/home_screen.dart';
+
 
 // 1. Correct Imports based on your new structure
 import 'main_scaffold.dart'; 
@@ -18,15 +21,19 @@ final router = GoRouter(
   routes: [
     GoRoute(
       path: '/',
-      builder: (context, state) => const MainScaffold(), 
+      builder: (context, state) => const MainScaffold(child: StartseitePages()), 
     ),
     GoRoute(
       path: '/login',
-      builder: (context, state) => const LoginScreen(),
+      builder: (context, state) => const MainScaffold(child: LoginScreen()),
     ),
     GoRoute(
       path: '/signup',
-      builder: (context, state) => const SignupScreen(),
+      builder: (context, state) => const MainScaffold(child: SignupScreen()),
+    ),
+    GoRoute(
+      path: '/search',
+      builder: (context, state) => const MainScaffold(child: SearchScreen()),
     ),
   ],
 

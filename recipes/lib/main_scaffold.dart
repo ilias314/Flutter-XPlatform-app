@@ -5,7 +5,9 @@ import 'package:recipes/pages/home_screen.dart';
 import 'package:recipes/pages/profile_screen.dart';
 
 class MainScaffold extends StatefulWidget {
-  const MainScaffold({super.key});
+  final Widget child;
+
+  const MainScaffold({super.key, required this.child});
 
   @override
   State<MainScaffold> createState() => _MainScaffoldState();
@@ -42,8 +44,7 @@ class _MainScaffoldState extends State<MainScaffold> {
   Widget build(BuildContext context) {
     return Scaffold(
       // This switches the body content based on the index
-      body: _pages[_selectedIndex],
-
+      body: widget.child,
       // ⭐ Use your custom widget here!
       bottomNavigationBar: AppBottomNavBar(
         currentIndex: _selectedIndex,

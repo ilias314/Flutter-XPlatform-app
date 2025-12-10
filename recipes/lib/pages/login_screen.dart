@@ -22,7 +22,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             email: _emailController.text.trim(),
             password: _passwordController.text.trim(),
           );
-      // Navigation is handled automatically by the Router (see Step 4)
+      // Navigation is handled automatically by the Router 
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

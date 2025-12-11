@@ -1,43 +1,51 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'dart:async'; // Required for the stream listener
-import 'pages/search_screen.dart';
-import 'pages/home_screen.dart';
+import 'dart:async'; 
 
-
-// 1. Correct Imports based on your new structure
+// Import your screens
 import 'main_scaffold.dart'; 
 import 'pages/login_screen.dart';
 import 'pages/register_screen.dart';
+import 'pages/search_screen.dart';
+import 'main_scaffold.dart';
 
 final router = GoRouter(
   initialLocation: '/',
   
-  //  CRITICAL ADDITION: This forces the router to re-evaluate 
-  // the 'redirect' logic immediately when the user logs in or out.
+  // Listen to Auth Changes
   refreshListenable: GoRouterRefreshStream(Supabase.instance.client.auth.onAuthStateChange),
 
   routes: [
+    // 1. HOME (Private)
+    // We do NOT pass a child. MainScaffold handles the tabs internally.
     GoRoute(
       path: '/',
-      builder: (context, state) => const MainScaffold(child: StartseitePages()), 
+      builder: (context, state) => const MainScaffold(), 
     ),
+
+    // 2. LOGIN (Public)
+    // We do NOT wrap this in MainScaffold. It should be full screen.
     GoRoute(
       path: '/login',
-      builder: (context, state) => const MainScaffold(child: LoginScreen()),
+      builder: (context, state) => const LoginScreen(),
     ),
+
+    // 3. SIGNUP (Public)
     GoRoute(
       path: '/signup',
-      builder: (context, state) => const MainScaffold(child: SignupScreen()),
+      builder: (context, state) => const SignupScreen(),
     ),
+
+    // 4. SEARCH (Standalone)
+    // Usually, search is a full-screen page that sits on top of everything.
     GoRoute(
       path: '/search',
-      builder: (context, state) => const MainScaffold(child: SearchScreen()),
+      builder: (context, state) => const SearchScreen(),
     ),
   ],
 
-  // THE GUARD: Protects private pages
+  // THE GUARD (Bouncer)
   redirect: (context, state) {
     final session = Supabase.instance.client.auth.currentSession;
     
@@ -46,23 +54,21 @@ final router = GoRouter(
     final isSigningUp = state.uri.toString() == '/signup';
     final userIsLoggedIn = session != null;
 
-    // Rule 1: Not logged in? Kick to Login.
+    // Rule 1: If NOT logged in, and trying to go to a private page -> Force Login
     if (!userIsLoggedIn && !isLoggingIn && !isSigningUp) {
       return '/login';
     }
 
-    // Rule 2: Already logged in? Kick to Home.
+    // Rule 2: If ALREADY logged in, and trying to go to Login -> Force Home
     if (userIsLoggedIn && (isLoggingIn || isSigningUp)) {
       return '/';
     }
 
-    // No rules broken? Let them pass.
     return null; 
   },
 );
 
-//  HELPER CLASS
-// This converts the Supabase Stream into something GoRouter can listen to.
+// HELPER CLASS
 class GoRouterRefreshStream extends ChangeNotifier {
   late final StreamSubscription<AuthState> _subscription;
 

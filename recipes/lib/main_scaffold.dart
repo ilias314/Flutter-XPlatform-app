@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:recipes/pages/create_recipe_screen.dart';
 import 'package:recipes/widgets/bottom_navbar.dart'; 
-import 'package:recipes/pages/home_screen.dart';
+import 'package:recipes/pages/home_screen.dart'; // Ensure StartseitePages is exported here
 import 'package:recipes/pages/profile_screen.dart';
 
 class MainScaffold extends StatefulWidget {
-  final Widget child;
-
-  const MainScaffold({super.key, required this.child});
+  // ✅ FIX: Removed 'final Widget child;'
+  // We don't need it because we use the internal list '_pages' below.
+  const MainScaffold({super.key});
 
   @override
   State<MainScaffold> createState() => _MainScaffoldState();
@@ -25,7 +25,7 @@ class _MainScaffoldState extends State<MainScaffold> {
     const Center(child: Text('Wochenplan Screen')), 
     
     // Index 2: Neues Rezept (Add Recipe)
-   const CreateRezeptPages(),
+    const CreateRezeptPages(),
     
     // Index 3: Einkaufsliste
     const Center(child: Text('Einkaufsliste Screen')),
@@ -46,7 +46,6 @@ class _MainScaffoldState extends State<MainScaffold> {
       // This switches the body content based on the index
       body: _pages[_selectedIndex],
 
-      //  Use your custom widget here!
       bottomNavigationBar: AppBottomNavBar(
         currentIndex: _selectedIndex,
         onTapped: _onTabChange,

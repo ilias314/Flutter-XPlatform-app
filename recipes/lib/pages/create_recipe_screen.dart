@@ -2,12 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:recipes/models/ingredient.dart'; 
 import 'package:recipes/widgets/ingredient_input_field.dart';
 import 'package:recipes/widgets/ui_utils.dart';
+import '../data/recipe_repository.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:recipes/services/image_upload_service.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:go_router/go_router.dart'; // 
 
 // Enum für die Schwierigkeit
 enum Difficulty { einfach, mittel, schwer }
 
 class CreateRezeptPages extends StatefulWidget {
   const CreateRezeptPages({super.key});
+  
 
   @override
   State<CreateRezeptPages> createState() => _CreateRezeptPagesState();
@@ -15,6 +23,10 @@ class CreateRezeptPages extends StatefulWidget {
 
 class _CreateRezeptPagesState extends State<CreateRezeptPages> {
   final _formKey = GlobalKey<FormState>();
+  File? _selectedImage; // (Stores the image on the phone)
+  bool _isLoading = false; //(To show loading spinner)
+  
+  
   
   // Formulardaten
   Difficulty? _selectedDifficulty = Difficulty.einfach;
@@ -27,6 +39,17 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
   final TextEditingController _descriptionController = TextEditingController();
 
 
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    // Open the gallery
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    
+    if (pickedFile != null) {
+      setState(() {
+        _selectedImage = File(pickedFile.path); // Update UI to show the image
+      });
+    }
+  }
   // --- Methoden für die Zutatenliste ---
   
   /// Fügt ein neues leeres Feld zur Zutatenliste hinzu.
@@ -84,23 +107,63 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
   // --- Methdode zum Speichern des Rezepts ---
   
   /// Validiert das Formular und speichert die Daten (Placeholder).
-  void _saveRecipe() {
-    if (_formKey.currentState!.validate()) {
+  Future<void> _saveRecipe() async {
+  if (_formKey.currentState!.validate()) {
+    setState(() => _isLoading = true); // Start spinner
+
+    try {
+      final supabase = Supabase.instance.client;
+      final userId = supabase.auth.currentUser!.id;
+
+      // 1. Upload Image First
+      String? uploadedUrl;
+      if (_selectedImage != null) {
+        print("🟡 Starting Upload..."); // <--- DEBUG PRINT
+        
+        final imageService = ImageUploadService(supabase);
+        uploadedUrl = await imageService.uploadRecipeImage(_selectedImage!, userId);
+        
+        print("✅ Upload Result: $uploadedUrl"); // <--- CHECK THIS IN CONSOLE
+      } else {
+        print("🔴 No image selected!");
+      }
+
+      // 2. Save Recipe with the URL
+      final repo = RecipeRepository(supabase);
       
-      // Sammelt die Formulardaten (Placeholder für den API-Aufruf)
-      final Map<String, dynamic> recipeData = {
-        'name': _recipeNameController.text,
-        'difficulty': _selectedDifficulty.toString().split('.').last,
-        'preparationTime': int.tryParse(_preparationTimeController.text) ?? 0,
-        'portions': int.tryParse(_portionsController.text) ?? 0,
-        'description': _descriptionController.text,
-        'ingredients': _ingredients.where((i) => i.name.isNotEmpty).toList(),
-      };
-      
-      showNotImplementedSnackbar(context); 
-      print('Daten zum Speichern: $recipeData'); 
+      // ... prepare ingredients list ...
+      final List<Map<String, dynamic>> ingredientsData = _ingredients.map((ing) => {
+          'name': ing.name,
+          'quantity': ing.quantity,
+          'unit': ing.unit,
+      }).toList();
+
+      await repo.createRecipe(
+        userId: userId,
+        name: _recipeNameController.text,
+        description: _descriptionController.text,
+        prepTime: int.parse(_preparationTimeController.text),
+        portions: int.parse(_portionsController.text),
+        difficulty: _selectedDifficulty!.name,
+        imageUrl: uploadedUrl, // <--- PASS THE URL HERE
+        ingredients: ingredientsData,
+        // Don't forget the defaults we fixed earlier!
+        calories: 0.0,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert!')));
+        context.pushReplacement('/');
+      }
+    } catch (e) {
+      if(mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if(mounted) setState(() => _isLoading = false); // Stop spinner
     }
   }
+}
 
 
   @override
@@ -227,25 +290,35 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
   // --- Widgets Helpers ---
   
   /// Abschnitt zum Hochladen eines Rezeptbildes (Platzhalter)
-  Widget _buildImageUploadSection(BuildContext context) {
+ Widget _buildImageUploadSection(BuildContext context) {
     return InkWell(
-      onTap: () => showNotImplementedSnackbar(context),
+      onTap: _pickImage, // <--- THIS IS THE FIX (Calls the gallery instead of the snackbar)
       child: Container(
-        height: 150,
+        height: 200,
+        width: double.infinity,
         decoration: BoxDecoration(
           color: Colors.grey[200],
           borderRadius: BorderRadius.circular(8.0),
           border: Border.all(color: Colors.grey),
+          // Logic: If image is selected, show it. Else, show placeholder.
+          image: _selectedImage != null 
+            ? DecorationImage(
+                image: FileImage(_selectedImage!), 
+                fit: BoxFit.cover
+              )
+            : null,
         ),
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.cloud_upload, size: 40, color: Colors.grey),
-              Text('Bild hochladen (max 5MB)'),
-            ],
-          ),
-        ),
+        child: _selectedImage == null
+            ? const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.cloud_upload, size: 40, color: Colors.grey),
+                    Text('Bild hochladen (Tippen)'),
+                  ],
+                ),
+              )
+            : null, // If image exists, don't show the icon
       ),
     );
   }

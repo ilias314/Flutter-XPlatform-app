@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:recipes/models/ingredient.dart'; 
 import 'package:recipes/widgets/ingredient_input_field.dart';
 import 'package:recipes/widgets/ui_utils.dart';
@@ -9,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart'; 
+import 'package:recipes/models/category.dart';
 
 // Enum für die Schwierigkeit
 enum Difficulty { einfach, mittel, schwer }
@@ -28,6 +30,10 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
   // Formulardaten
   Difficulty? _selectedDifficulty = Difficulty.einfach;
   final List<IngredientInput> _ingredients = [IngredientInput()]; 
+
+  List<RecipeCategory> _availableCategories = [];
+  Set<String> _selectedCategoryIds = {};
+  bool _isCategoriesLoading = true;
   
   // Controllers für Textfelder
   final TextEditingController _recipeNameController = TextEditingController();
@@ -113,7 +119,26 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
       _removeIngredientField(index);
     }
   }
-
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
+  Future<void> _loadCategories() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final repo = RecipeRepository(supabase);
+      final categories = await repo.getCategories();
+      
+      setState(() {
+        _availableCategories = categories;
+        _isCategoriesLoading = false;
+      });
+    } catch (e) {
+      print('Error loading categories: $e');
+      setState(() => _isCategoriesLoading = false);
+    }
+  }
 
   // --- Methdode zum Speichern des Rezepts ---
   
@@ -157,6 +182,7 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
           difficulty: _selectedDifficulty!.name,
           imageUrl: uploadedUrl,
           ingredients: ingredientsData,
+          categoryIds: _selectedCategoryIds.toList(),
           calories: double.tryParse(_caloriesController.text) ?? 0.0,
           protein: double.tryParse(_proteinController.text) ?? 0.0,
           carbs: double.tryParse(_carbsController.text) ?? 0.0,
@@ -415,15 +441,39 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
   
   /// Abschnitt für die Tag-Auswahl (Chips)
   Widget _buildTagsSection(BuildContext context) {
-    const List<String> tags = ['Vegan','Alles','vegetarisch', 'Snack', 'Frühstück', 'Abendessen', 'Käsefrei','Dessert','Halal'];
+    if (_isCategoriesLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_availableCategories.isEmpty) {
+      return const Text(
+        'Keine Kategorien verfügbar',
+        style: TextStyle(color: Colors.grey),
+      );
+    }
+
     return Wrap(
       spacing: 8.0,
-      runSpacing: 4.0, 
-      children: tags.map((tag) => ActionChip(
-        label: Text(tag),
-        onPressed: () => showNotImplementedSnackbar(context),
-        backgroundColor: Colors.grey[200], 
-      )).toList(),
+      runSpacing: 4.0,
+      children: _availableCategories.map((category) {
+        final isSelected = _selectedCategoryIds.contains(category.id);
+        
+        return FilterChip(
+          label: Text(category.name),
+          selected: isSelected,
+          onSelected: (bool selected) {
+            setState(() {
+              if (selected) {
+                _selectedCategoryIds.add(category.id);
+              } else {
+                _selectedCategoryIds.remove(category.id);
+              }
+            });
+          },
+          selectedColor: Theme.of(context).colorScheme.primaryContainer,
+          checkmarkColor: Theme.of(context).colorScheme.onPrimaryContainer,
+        );
+      }).toList(),
     );
   }
 
@@ -446,5 +496,19 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
         return null;
       },
     );
+  }
+  @override
+  void dispose() {
+    _recipeNameController.dispose();
+    _preparationTimeController.dispose();
+    _portionsController.dispose();
+    _descriptionController.dispose();
+    _caloriesController.dispose();
+    _proteinController.dispose();
+    _carbsController.dispose();
+    _fatController.dispose();
+    _fiberController.dispose();
+    _sugarController.dispose();
+    super.dispose();
   }
 }

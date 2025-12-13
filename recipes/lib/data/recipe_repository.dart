@@ -1,10 +1,21 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/recipe.dart';
+import '../models/category.dart';
 
 class RecipeRepository {
   final SupabaseClient _client;
 
   RecipeRepository(this._client);
+
+  /// Fetch all available categories
+  Future<List<RecipeCategory>> getCategories() async {
+    final data = await _client
+        .from('categories')
+        .select()
+        .order('name', ascending: true);
+    
+    return data.map((json) => RecipeCategory.fromJson(json)).toList();
+  }
 
   /// Main function to save a new recipe and its ingredients
   Future<void> createRecipe({
@@ -15,8 +26,8 @@ class RecipeRepository {
     required int portions,
     required String difficulty,
     String? imageUrl,
-    // We expect a list of maps: [{'name': 'Flour', 'quantity': 500, 'unit': 'g'}, ...]
     required List<Map<String, dynamic>> ingredients,
+    List<String> categoryIds = const [], // NEW: Category IDs
     double calories = 0.0,
     double protein = 0.0,
     double carbs = 0.0,
@@ -26,7 +37,6 @@ class RecipeRepository {
   }) async {
     
     // --- STEP 1: Insert the Recipe ---
-    // We insert the main details and ask Supabase to return the new ID immediately.
     final recipeResponse = await _client.from('recipes').insert({
       'user_id': userId,
       'name': name,
@@ -35,15 +45,12 @@ class RecipeRepository {
       'portions': portions,
       'difficulty': difficulty,
       'image_url': imageUrl,
-      'calories_per_portion': 0, // Default to 0 if UI doesn't have this field yet
-
+      'calories_per_portion': calories,
       'protein_per_portion': protein,
       'carbs_per_portion': carbs,
       'fat_per_portion': fat,
       'sugar_per_portion': sugar,
       'fiber_per_portion': fiber,
-      
-      // Initialize ratings to 0
       'avg_rating': 0.0,
       'rating_count': 0,
     }).select('id').single(); 
@@ -51,18 +58,15 @@ class RecipeRepository {
     final String newRecipeId = recipeResponse['id'];
 
     // --- STEP 2: Process Ingredients ---
-    // This is tricky: Ingredients might already exist in the DB, or they might be new.
     for (var item in ingredients) {
       final String ingName = item['name'];
       final double quantity = (item['quantity'] as num).toDouble();
       final String unit = item['unit'];
 
-      if (ingName.isEmpty) continue; // Skip empty rows
+      if (ingName.isEmpty) continue;
 
-      // A. Get the Ingredient ID (Find existing OR Create new)
       String ingredientId = await _getOrCreateIngredientId(ingName, unit);
 
-      // B. Link Ingredient to Recipe (Insert into 'recipe_ingredients')
       await _client.from('recipe_ingredients').insert({
         'recipe_id': newRecipeId,
         'ingredient_id': ingredientId,
@@ -70,22 +74,30 @@ class RecipeRepository {
         'unit': unit,
       });
     }
+
+    // --- STEP 3: Link Categories to Recipe ---
+    if (categoryIds.isNotEmpty) {
+      final categoryLinks = categoryIds.map((categoryId) => {
+        'recipe_id': newRecipeId,
+        'category_id': categoryId,
+      }).toList();
+
+      await _client.from('recipe_categories').insert(categoryLinks);
+    }
   }
 
   /// Helper: Checks if ingredient exists. If yes, returns ID. If no, creates it and returns new ID.
   Future<String> _getOrCreateIngredientId(String name, String defaultUnit) async {
-    // 1. Try to find it
     final existing = await _client
         .from('ingredients')
         .select('id')
-        .ilike('name', name) // Case-insensitive search (e.g. "Milk" == "milk")
+        .ilike('name', name)
         .maybeSingle();
 
     if (existing != null) {
       return existing['id'];
     }
 
-    // 2. If not found, create it
     final newIngredient = await _client
         .from('ingredients')
         .insert({

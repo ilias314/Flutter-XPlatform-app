@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // 1. Import Riverpod
 import 'router.dart'; // 2. Import the router we created
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +27,23 @@ class MyApp extends StatelessWidget {
       routerConfig: router, // Connects to the logic in router.dart
       debugShowCheckedModeBanner: false,
       title: 'Rezepte App',
+      //  Hinzufügen der Lokalisierungs-Einstellungen
+      localizationsDelegates: const [
+        // Standarddelegierte für Material-Widgets (z.B. DatePicker-Texte)
+        GlobalMaterialLocalizations.delegate, 
+        // Standarddelegierte für generische Widgets
+        GlobalWidgetsLocalizations.delegate,  
+        // Standarddelegierte für iOS-ähnliche Widgets
+        GlobalCupertinoLocalizations.delegate, 
+      ],
+      // Unterstützte Sprachen (muss 'de' enthalten, da wir die de-DE Locale im DatePicker verwenden)
+      supportedLocales: const [
+        Locale('en', 'US'), // Englisch
+        Locale('de', 'DE'), // Deutsch
+      ],
+      // Optional: Setzt die Standard-Locale der App auf Deutsch
+      // Dadurch werden Dinge wie Zeitformate standardmäßig auf Deutsch angezeigt.
+      locale: const Locale('de', 'DE'),
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
         useMaterial3: true,

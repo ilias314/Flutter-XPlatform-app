@@ -22,7 +22,7 @@ class CreateRezeptPages extends StatefulWidget {
 
 class _CreateRezeptPagesState extends State<CreateRezeptPages> {
   final _formKey = GlobalKey<FormState>();
-  File? _selectedImage; 
+  dynamic _selectedImage; 
   bool _isLoading = false; 
   
   // Formulardaten
@@ -50,7 +50,13 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
     
     if (pickedFile != null) {
       setState(() {
-        _selectedImage = File(pickedFile.path); 
+        if (kIsWeb) {
+          // On web, keep it as XFile
+          _selectedImage = pickedFile;
+        } else {
+          // On mobile, convert to File
+          _selectedImage = File(pickedFile.path);
+        }
       });
     }
   }
@@ -113,67 +119,68 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
   
   /// Validiert das Formular und speichert die Daten (Placeholder).
   Future<void> _saveRecipe() async {
-  if (_formKey.currentState!.validate()) {
-    setState(() => _isLoading = true); 
+    if (_formKey.currentState!.validate()) {
+      setState(() => _isLoading = true);
 
-    try {
-      final supabase = Supabase.instance.client;
-      final userId = supabase.auth.currentUser!.id;
+      try {
+        final supabase = Supabase.instance.client;
+        final userId = supabase.auth.currentUser!.id;
 
-      // 1. Upload Image First
-      String? uploadedUrl;
-      if (_selectedImage != null) {
-        print("🟡 Starting Upload..."); 
+        // 1. Upload Image First
+        String? uploadedUrl;
+        if (_selectedImage != null) {
+          print("🟡 Starting Upload...");
+          
+          final imageService = ImageUploadService(supabase);
+          uploadedUrl = await imageService.uploadRecipeImage(_selectedImage!, userId);
+          
+          print("✅ Upload Result: $uploadedUrl");
+        } else {
+          print("🔴 No image selected!");
+        }
+
+        // 2. Save Recipe with the URL
+        final repo = RecipeRepository(supabase);
         
-        final imageService = ImageUploadService(supabase);
-        uploadedUrl = await imageService.uploadRecipeImage(_selectedImage!, userId);
-        
-        print("✅ Upload Result: $uploadedUrl"); 
-      } else {
-        print("🔴 No image selected!");
-      }
+        final List<Map<String, dynamic>> ingredientsData = _ingredients.map((ing) => {
+            'name': ing.name,
+            'quantity': ing.quantity,
+            'unit': ing.unit,
+        }).toList();
 
-      // 2. Save Recipe with the URL
-      final repo = RecipeRepository(supabase);
-      
-      // ... prepare ingredients list ...
-      final List<Map<String, dynamic>> ingredientsData = _ingredients.map((ing) => {
-          'name': ing.name,
-          'quantity': ing.quantity,
-          'unit': ing.unit,
-      }).toList();
+        await repo.createRecipe(
+          userId: userId,
+          name: _recipeNameController.text,
+          description: _descriptionController.text,
+          prepTime: int.parse(_preparationTimeController.text),
+          portions: int.parse(_portionsController.text),
+          difficulty: _selectedDifficulty!.name,
+          imageUrl: uploadedUrl,
+          ingredients: ingredientsData,
+          calories: double.tryParse(_caloriesController.text) ?? 0.0,
+          protein: double.tryParse(_proteinController.text) ?? 0.0,
+          carbs: double.tryParse(_carbsController.text) ?? 0.0,
+          fat: double.tryParse(_fatController.text) ?? 0.0,
+          fiber: double.tryParse(_fiberController.text) ?? 0.0,
+          sugar: double.tryParse(_sugarController.text) ?? 0.0,
+        );
 
-      await repo.createRecipe(
-        userId: userId,
-        name: _recipeNameController.text,
-        description: _descriptionController.text,
-        prepTime: int.parse(_preparationTimeController.text),
-        portions: int.parse(_portionsController.text),
-        difficulty: _selectedDifficulty!.name,
-        imageUrl: uploadedUrl, 
-        ingredients: ingredientsData,
-        
-        // NEUE NÄHRWERT-DATEN HINZUFÜGEN 
-        calories: double.tryParse(_caloriesController.text) ?? 0.0,
-        protein: double.tryParse(_proteinController.text) ?? 0.0,
-        carbs: double.tryParse(_carbsController.text) ?? 0.0,
-        fat: double.tryParse(_fatController.text) ?? 0.0,
-        fiber: double.tryParse(_fiberController.text) ?? 0.0,
-        sugar: double.tryParse(_sugarController.text) ?? 0.0,
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert!')));
-        context.pushReplacement('/');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Gespeichert!'))
+          );
+          context.pushReplacement('/');
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'))
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
       }
-    } catch (e) {
-      if(mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-    } finally {
-      if(mounted) setState(() => _isLoading = false); 
     }
-  }
 }
 
 
@@ -331,36 +338,59 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
   
   /// Abschnitt zum Hochladen eines Rezeptbildes
  Widget _buildImageUploadSection(BuildContext context) {
-    return InkWell(
-      onTap: _pickImage, 
-      child: Container(
-        height: 200,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: Colors.grey[200],
-          borderRadius: BorderRadius.circular(8.0),
-          border: Border.all(color: Colors.grey),
-          image: _selectedImage != null 
-            ? DecorationImage(
-                image: FileImage(_selectedImage!), 
-                fit: BoxFit.cover
-              )
-            : null,
-        ),
-        child: _selectedImage == null
-            ? const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.cloud_upload, size: 40, color: Colors.grey),
-                    Text('Bild hochladen (Tippen)'),
-                  ],
-                ),
-              )
-            : null, 
+  return InkWell(
+    onTap: _pickImage,
+    child: Container(
+      height: 200,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(8.0),
+        border: Border.all(color: Colors.grey),
       ),
-    );
-  }
+      child: _selectedImage == null
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.cloud_upload, size: 40, color: Colors.grey),
+                  Text('Bild hochladen (Tippen)'),
+                ],
+              ),
+            )
+          : ClipRRect(
+              borderRadius: BorderRadius.circular(8.0),
+              child: kIsWeb
+                  ? Image.network(
+                      // On web, XFile doesn't have a path, use network image from blob
+                      _selectedImage.path,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        // Fallback: try to load bytes directly
+                        return FutureBuilder<Uint8List>(
+                          future: _selectedImage.readAsBytes(),
+                          builder: (context, snapshot) {
+                            if (snapshot.hasData) {
+                              return Image.memory(
+                                snapshot.data!,
+                                fit: BoxFit.cover,
+                              );
+                            }
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          },
+                        );
+                      },
+                    )
+                  : Image.file(
+                      _selectedImage as File,
+                      fit: BoxFit.cover,
+                    ),
+            ),
+    ),
+  );
+}
 
   /// Abschnitt für die Auswahl der Schwierigkeitsstufe (Radio Buttons)
   Widget _buildDifficultySection() {
@@ -385,7 +415,7 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
   
   /// Abschnitt für die Tag-Auswahl (Chips)
   Widget _buildTagsSection(BuildContext context) {
-    const List<String> tags = ['Vegan','Allesfresser','vegetarisch', 'Snack', 'Frühstück', 'Abendessen', 'Käsefrei','Dessert','Halal'];
+    const List<String> tags = ['Vegan','Alles','vegetarisch', 'Snack', 'Frühstück', 'Abendessen', 'Käsefrei','Dessert','Halal'];
     return Wrap(
       spacing: 8.0,
       runSpacing: 4.0, 

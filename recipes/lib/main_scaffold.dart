@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:recipes/pages/create_recipe_screen.dart';
+import 'package:recipes/pages/weekly_plan_screen.dart';
 import 'package:recipes/widgets/bottom_navbar.dart'; 
 import 'package:recipes/pages/home_screen.dart'; // Ensure StartseitePages is exported here
 import 'package:recipes/pages/profile_screen.dart';
@@ -22,7 +23,7 @@ class _MainScaffoldState extends State<MainScaffold> {
     const StartseitePages(), 
     
     // Index 1: Wochenplan
-    const Center(child: Text('Wochenplan Screen')), 
+    const WochenplanPages(), 
     
     // Index 2: Neues Rezept (Add Recipe)
     const CreateRezeptPages(),

@@ -8,7 +8,7 @@ import 'package:recipes/services/image_upload_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:go_router/go_router.dart'; // 
+import 'package:go_router/go_router.dart'; 
 
 // Enum für die Schwierigkeit
 enum Difficulty { einfach, mittel, schwer }
@@ -16,17 +16,14 @@ enum Difficulty { einfach, mittel, schwer }
 class CreateRezeptPages extends StatefulWidget {
   const CreateRezeptPages({super.key});
   
-
   @override
   State<CreateRezeptPages> createState() => _CreateRezeptPagesState();
 }
 
 class _CreateRezeptPagesState extends State<CreateRezeptPages> {
   final _formKey = GlobalKey<FormState>();
-  File? _selectedImage; // (Stores the image on the phone)
-  bool _isLoading = false; //(To show loading spinner)
-  
-  
+  File? _selectedImage; 
+  bool _isLoading = false; 
   
   // Formulardaten
   Difficulty? _selectedDifficulty = Difficulty.einfach;
@@ -38,18 +35,26 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
   final TextEditingController _portionsController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
+  // CONTROLLERS FÜR NÄHRWERTE 
+  final TextEditingController _caloriesController = TextEditingController();
+  final TextEditingController _proteinController = TextEditingController();
+  final TextEditingController _carbsController = TextEditingController();
+  final TextEditingController _fatController = TextEditingController();
+  final TextEditingController _fiberController = TextEditingController();
+  final TextEditingController _sugarController = TextEditingController();
+
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    // Open the gallery
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
     
     if (pickedFile != null) {
       setState(() {
-        _selectedImage = File(pickedFile.path); // Update UI to show the image
+        _selectedImage = File(pickedFile.path); 
       });
     }
   }
+  
   // --- Methoden für die Zutatenliste ---
   
   /// Fügt ein neues leeres Feld zur Zutatenliste hinzu.
@@ -72,8 +77,8 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Datensatz löschen?'), // Löschbestätigungstitel
-          content: const Text('Sind Sie sicher, dass Sie diesen Eintrag löschen möchten?'), // Löschbestätigungstext
+          title: const Text('Datensatz löschen?'), 
+          content: const Text('Sind Sie sicher, dass Sie diesen Eintrag löschen möchten?'), 
           actions: <Widget>[
             // Nein-Button
             TextButton(
@@ -109,7 +114,7 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
   /// Validiert das Formular und speichert die Daten (Placeholder).
   Future<void> _saveRecipe() async {
   if (_formKey.currentState!.validate()) {
-    setState(() => _isLoading = true); // Start spinner
+    setState(() => _isLoading = true); 
 
     try {
       final supabase = Supabase.instance.client;
@@ -118,12 +123,12 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
       // 1. Upload Image First
       String? uploadedUrl;
       if (_selectedImage != null) {
-        print("🟡 Starting Upload..."); // <--- DEBUG PRINT
+        print("🟡 Starting Upload..."); 
         
         final imageService = ImageUploadService(supabase);
         uploadedUrl = await imageService.uploadRecipeImage(_selectedImage!, userId);
         
-        print("✅ Upload Result: $uploadedUrl"); // <--- CHECK THIS IN CONSOLE
+        print("✅ Upload Result: $uploadedUrl"); 
       } else {
         print("🔴 No image selected!");
       }
@@ -145,10 +150,16 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
         prepTime: int.parse(_preparationTimeController.text),
         portions: int.parse(_portionsController.text),
         difficulty: _selectedDifficulty!.name,
-        imageUrl: uploadedUrl, // <--- PASS THE URL HERE
+        imageUrl: uploadedUrl, 
         ingredients: ingredientsData,
-        // Don't forget the defaults we fixed earlier!
-        calories: 0.0,
+        
+        // NEUE NÄHRWERT-DATEN HINZUFÜGEN 
+        calories: double.tryParse(_caloriesController.text) ?? 0.0,
+        protein: double.tryParse(_proteinController.text) ?? 0.0,
+        carbs: double.tryParse(_carbsController.text) ?? 0.0,
+        fat: double.tryParse(_fatController.text) ?? 0.0,
+        fiber: double.tryParse(_fiberController.text) ?? 0.0,
+        sugar: double.tryParse(_sugarController.text) ?? 0.0,
       );
 
       if (mounted) {
@@ -160,7 +171,7 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
-      if(mounted) setState(() => _isLoading = false); // Stop spinner
+      if(mounted) setState(() => _isLoading = false); 
     }
   }
 }
@@ -227,8 +238,34 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
                 validator: (value) => (value == null || int.tryParse(value) == null) ? 'Geben Sie eine gültige Anzahl von Portionen an.' : null,
               ),
               const SizedBox(height: 20),
+              
+              const Text('Nährwerte pro Portion (Gramm/Kalorien):', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
 
-              // 7. Zutaten
+              // Kalorien
+              _buildNutritionInputField(_caloriesController, 'Kalorien (kcal)'),
+              const SizedBox(height: 15),
+
+              // Protein
+              _buildNutritionInputField(_proteinController, 'Protein (g)'),
+              const SizedBox(height: 15),
+
+              // Kohlenhydrate (Carbs)
+              _buildNutritionInputField(_carbsController, 'Kohlenhydrate (g)'),
+              const SizedBox(height: 15),
+
+              // Fett (Fat)
+              _buildNutritionInputField(_fatController, 'Fett (g)'),
+              const SizedBox(height: 15),
+
+              // Ballaststoffe (Fiber)
+              _buildNutritionInputField(_fiberController, 'Ballaststoffe (g)'),
+              const SizedBox(height: 15),
+              
+              // Zucker (Sugar)
+              _buildNutritionInputField(_sugarController, 'Zucker (g)'),
+              const SizedBox(height: 20),
+
               const Text('Zutaten:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
               ..._ingredients.asMap().entries.map((entry) {
@@ -236,7 +273,6 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
                 IngredientInput item = entry.value;
                 return IngredientInputField(
                   ingredient: item,
-                  // Ruft nun die Bestätigungslogik auf
                   onDelete: () => _handleRemoveIngredient(index), 
                   onQuantityChanged: (val) => item.quantity = double.tryParse(val) ?? 0.0,
                   onUnitChanged: (val) => item.unit = val,
@@ -252,7 +288,9 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
               ),
               const SizedBox(height: 20),
 
-              // 8. Beschreibung / Zubereitung
+              // ------------------------------------------
+              // 8. Beschreibung / Zubereitung (Wird jetzt 14. Sektion)
+              // ------------------------------------------
               const Text('Zubereitung:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               TextFormField(
                 controller: _descriptionController,
@@ -267,14 +305,16 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
 
               // Boutton zum Speichern
               Center(
-                child: ElevatedButton(
+                child: _isLoading 
+                    ? const CircularProgressIndicator()
+                    : ElevatedButton(
                   onPressed: _saveRecipe,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
                     backgroundColor: Theme.of(context).colorScheme.primary,
                   ),
                   child: const Text(
-                    'Rezept speichern', // Rezept speichern
+                    'Rezept speichern', 
                     style: TextStyle(fontSize: 18, color: Colors.white),
                   ),
                 ),
@@ -289,10 +329,10 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
 
   // --- Widgets Helpers ---
   
-  /// Abschnitt zum Hochladen eines Rezeptbildes (Platzhalter)
+  /// Abschnitt zum Hochladen eines Rezeptbildes
  Widget _buildImageUploadSection(BuildContext context) {
     return InkWell(
-      onTap: _pickImage, // <--- THIS IS THE FIX (Calls the gallery instead of the snackbar)
+      onTap: _pickImage, 
       child: Container(
         height: 200,
         width: double.infinity,
@@ -300,7 +340,6 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
           color: Colors.grey[200],
           borderRadius: BorderRadius.circular(8.0),
           border: Border.all(color: Colors.grey),
-          // Logic: If image is selected, show it. Else, show placeholder.
           image: _selectedImage != null 
             ? DecorationImage(
                 image: FileImage(_selectedImage!), 
@@ -318,7 +357,7 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
                   ],
                 ),
               )
-            : null, // If image exists, don't show the icon
+            : null, 
       ),
     );
   }
@@ -329,7 +368,6 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
       children: Difficulty.values.map((difficulty) {
         return Expanded(
           child: RadioListTile<Difficulty>(
-            // Zeigt "Einfach", "Mittel", "Schwer" an
             title: Text(difficulty.name.substring(0, 1).toUpperCase() + difficulty.name.substring(1)),
             value: difficulty,
             groupValue: _selectedDifficulty,
@@ -347,16 +385,36 @@ class _CreateRezeptPagesState extends State<CreateRezeptPages> {
   
   /// Abschnitt für die Tag-Auswahl (Chips)
   Widget _buildTagsSection(BuildContext context) {
-    // Die Tags sollten idealerweise dynamisch aus der Datenbank geladen werden
     const List<String> tags = ['Vegan','Allesfresser','vegetarisch', 'Snack', 'Frühstück', 'Abendessen', 'Käsefrei','Dessert','Halal'];
     return Wrap(
       spacing: 8.0,
-      runSpacing: 4.0, // Vertikaler Abstand zwischen den Zeilen der Chips
+      runSpacing: 4.0, 
       children: tags.map((tag) => ActionChip(
         label: Text(tag),
         onPressed: () => showNotImplementedSnackbar(context),
         backgroundColor: Colors.grey[200], 
       )).toList(),
+    );
+  }
+
+  //  HELPER WIDGET FÜR NÄHRWERTE
+  Widget _buildNutritionInputField(TextEditingController controller, String labelText) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: TextInputType.number,
+      decoration: InputDecoration(
+        labelText: labelText,
+        border: const OutlineInputBorder(),
+        hintText: '0.0',
+      ),
+      // Optional: Ein Validator, der float-Werte zulässt
+      validator: (value) {
+        if (value == null || value.isEmpty) return null; // Leere Werte sind erlaubt
+        if (double.tryParse(value) == null) {
+          return 'Geben Sie eine gültige Zahl an.';
+        }
+        return null;
+      },
     );
   }
 }

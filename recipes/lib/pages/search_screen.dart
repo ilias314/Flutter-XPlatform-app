@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/search_provider.dart';
 import '../providers/search_suggestions_provider.dart';
 import 'package:go_router/go_router.dart';
+import '../providers/categories_provider.dart';
 
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -17,11 +18,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final TextEditingController _controller = TextEditingController();
   String _query = "";
   bool _showSuggestions = true;
+  bool _showFilters = false;
+  Set<String> _selectedCategoryIds = {};
 
 
   @override
   Widget build(BuildContext context) {
-    final results = ref.watch(searchRecipesProvider(_query));
+    final results = ref.watch(
+  searchRecipesProvider((
+    query: _query,
+    categoriesKey: (_selectedCategoryIds.toList()..sort()).join(','),
+  )),
+);
+
     final suggestions = ref.watch(searchSuggestionsProvider(_query));
 
     return Scaffold(
@@ -39,34 +48,78 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Hero(
-                  tag: 'search-bar',
-                  child: Material(
-                    color: Colors.transparent,
-                    child: TextField(
-                      controller: _controller,
-                      onChanged: (text) {
-                        setState(() {
-                           _query = text.trim();
-                      });
-                      },
-                      decoration: InputDecoration(
-                        hintText: "Rezept suchen...",
-                        prefixIcon: const Icon(Icons.search),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Hero(
+                        tag: 'search-bar',
+                        child: Material(
+                          color: Colors.transparent,
+                          child: TextField(
+                            controller: _controller,
+                            onChanged: (text) {
+                              setState(() {
+                                _query = text.trim();
+                                _showSuggestions = true;
+                              });
+                            },
+                            decoration: InputDecoration(
+                              hintText: "Rezept suchen...",
+                              prefixIcon: const Icon(Icons.search),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(
+                        _showFilters ? Icons.filter_alt_off : Icons.filter_alt,
+                      ),
+                      onPressed: () {
+                        setState(() => _showFilters = !_showFilters);
+                      },
+                    ),
+                  ],
                 ),
-
                 const SizedBox(height: 16),
-
+                if (_showFilters)
+                Consumer(
+                  builder: (context, ref, _) {
+                    final categories = ref.watch(categoriesProvider);
+                    return categories.when(
+                      data: (items) {
+                        return Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: items.map((cat) {
+                            final selected = _selectedCategoryIds.contains(cat.id);
+                            return FilterChip(
+                              label: Text(cat.name),
+                              selected: selected,
+                              onSelected: (value) {
+                                setState(() {
+                                  value
+                                  ? _selectedCategoryIds.add(cat.id)
+                                  : _selectedCategoryIds.remove(cat.id);
+                                });
+                              },
+                            );
+                          }).toList(),
+                        );
+                      },
+                      loading: () => const CircularProgressIndicator(),
+                      error: (e, _) => Text("Fehler: $e"),
+                    );
+                  },
+                ),
                 Expanded(
                   child: results.when(
                     data: (recipes) {
-                      if (_query.isEmpty) {
+                      if (_query.isEmpty && _selectedCategoryIds.isEmpty) {
                         return const Center(
                           child: Text("Such etwas..."),
                         );

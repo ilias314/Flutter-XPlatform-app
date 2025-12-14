@@ -1,13 +1,22 @@
 class Recipe {
-  final String? id; // Nullable because a new recipe doesn't have an ID yet
+  final String? id;
   final String userId;
   final String name;
   final String? imageUrl;
-  final int preparationTime; // in minutes
-  final String difficulty;   // 'einfach', 'mittel', 'schwer'
+  final int preparationTime;
+  final String difficulty;
   final int portions;
   final String description;
-  final double calories;     // Matches 'calories_per_portion' in DB
+  
+  // Nutrition Data
+  final double calories;
+  final double protein;
+  final double carbs;
+  final double fat;
+  final double sugar;
+  final double fiber;
+
+  final double avgRating;
   final DateTime? createdAt;
 
   Recipe({
@@ -20,10 +29,15 @@ class Recipe {
     required this.portions,
     required this.description,
     this.calories = 0.0,
+    this.protein = 0.0,
+    this.carbs = 0.0,
+    this.fat = 0.0,
+    this.sugar = 0.0,
+    this.fiber = 0.0,
+    this.avgRating = 0.0,
     this.createdAt,
   });
 
-  // --- 1. From Database (JSON) to Flutter (Object) ---
   factory Recipe.fromJson(Map<String, dynamic> json) {
     return Recipe(
       id: json['id'],
@@ -34,17 +48,22 @@ class Recipe {
       difficulty: json['difficulty'] ?? 'mittel',
       portions: json['portions'] ?? 1,
       description: json['description'] ?? '',
+      
+      // Map Database Columns to Dart Variables
       calories: (json['calories_per_portion'] ?? 0).toDouble(),
+      protein: (json['protein_per_portion'] ?? 0).toDouble(),
+      carbs: (json['carbs_per_portion'] ?? 0).toDouble(),
+      fat: (json['fat_per_portion'] ?? 0).toDouble(),
+      sugar: (json['sugar_per_portion'] ?? 0).toDouble(),
+      fiber: (json['fiber_per_portion'] ?? 0).toDouble(),
+      
+      avgRating: (json['avg_rating'] ?? 0).toDouble(),
       createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : null,
     );
   }
 
-  // --- 2. From Flutter (Object) to Database (JSON) ---
-  // We use this when sending data to Supabase
   Map<String, dynamic> toJson() {
     return {
-      // Note: We usually DON'T send 'id' or 'created_at' for new items 
-      // (Supabase generates them automatically)
       'user_id': userId,
       'name': name,
       'image_url': imageUrl,
@@ -53,6 +72,11 @@ class Recipe {
       'portions': portions,
       'description': description,
       'calories_per_portion': calories,
+      'protein_per_portion': protein,
+      'carbs_per_portion': carbs,
+      'fat_per_portion': fat,
+      'sugar_per_portion': sugar,
+      'fiber_per_portion': fiber,
     };
   }
 }

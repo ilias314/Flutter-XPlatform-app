@@ -79,7 +79,7 @@ class WochenplanRecipeCard extends StatelessWidget {
                         Icon(Icons.timer, size: 13),
                         Text('Zeit', style: TextStyle(fontSize: 12)),
                         SizedBox(width: 15),
-                        Icon(Icons.restaurant, size: 13),
+                        Icon(Icons.restaurant_menu, size: 13),
                         Text('Gerichttyp', style: TextStyle(fontSize: 12)),
                       ],
                     ),

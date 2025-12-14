@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:recipes/pages/recipe_detail_screen.dart';
 import 'package:recipes/widgets/ui_utils.dart';
 
 class RecipeCardPlaceholder extends StatelessWidget {
@@ -9,7 +10,15 @@ class RecipeCardPlaceholder extends StatelessWidget {
     return Card(
       elevation: 2.0,
       child: InkWell(
-        onTap: () => showNotImplementedSnackbar(context), 
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  const RecipeDetailPages(), // Placeholder for recipe detail page
+            ),
+          );
+        },
         child: Padding(
           padding: const EdgeInsets.all(8.0),
           child: Column(
@@ -23,7 +32,11 @@ class RecipeCardPlaceholder extends StatelessWidget {
                       borderRadius: BorderRadius.circular(4.0),
                     ),
                     child: const Center(
-                      child: Icon(Icons.photo_size_select_actual_outlined, size: 40, color: Colors.grey),
+                      child: Icon(
+                        Icons.photo_size_select_actual_outlined,
+                        size: 40,
+                        color: Colors.grey,
+                      ),
                     ),
                   ),
                 ),
@@ -44,6 +57,7 @@ class RecipeCardPlaceholder extends StatelessWidget {
               const Row(
                 children: [
                   Icon(Icons.star, color: Colors.amber, size: 15),
+                  SizedBox(width: 5),
                   Text('4.5', style: TextStyle(fontSize: 12)),
                   SizedBox(width: 15),
                   Text('Einfach', style: TextStyle(fontSize: 12)),
@@ -52,10 +66,12 @@ class RecipeCardPlaceholder extends StatelessWidget {
               const SizedBox(height: 5.0),
               const Row(
                 children: [
-                  Icon(Icons.timer, size: 13),
+                  Icon(Icons.timer, size: 13, color: Colors.grey),
+                 SizedBox(width: 5),
                   Text('Zeit', style: TextStyle(fontSize: 12)),
                   SizedBox(width: 15),
-                  Icon(Icons.restaurant, size: 13),
+                  Icon(Icons.restaurant_menu, size: 13, color: Colors.grey),
+                  SizedBox(width: 5),
                   Text('Gerichttyp', style: TextStyle(fontSize: 12)),
                 ],
               ),

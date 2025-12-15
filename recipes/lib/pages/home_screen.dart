@@ -25,8 +25,17 @@ class _StartseitePagesState extends State<StartseitePages> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // ---------------------------------------------------------
+      // 1. APP BAR (Ohne manuelles leading Icon!)
+      // Flutter fügt das Burger-Icon automatisch hinzu, weil wir unten einen 'drawer' haben.
+      // ---------------------------------------------------------
       appBar: AppBar(
         title: const Text('RecipeS'),
+        titleTextStyle: const TextStyle(
+          color: Colors.orange, 
+          fontSize: 24, 
+          fontWeight: FontWeight.bold,
+        ),
         centerTitle: true,
         actions: <Widget>[
           Hero(
@@ -41,6 +50,64 @@ class _StartseitePagesState extends State<StartseitePages> {
           ),
         ],
       ),
+
+      // ---------------------------------------------------------
+      // 2. DRAWER (Das Menü, das von der Seite kommt)
+      // ---------------------------------------------------------
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero, // Wichtig, damit es auch hinter die Statusleiste geht
+          children: [
+            // Der Kopfbereich des Menüs
+            const DrawerHeader(
+              decoration: BoxDecoration(
+                color: Colors.orange, // Deine App-Farbe
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Icon(Icons.restaurant_menu, color: Colors.white, size: 48),
+                  SizedBox(height: 10),
+                  Text(
+                    'RecipeS Menü',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Eintrag 1: Favoriten
+            ListTile(
+              title: const Text('Favoriten'),
+              onTap: () {
+                // Erst den Drawer schließen, dann navigieren
+                Navigator.pop(context); 
+                // context.go('/favorites'); // TODO: Route einfügen
+                print("Navigiere zu Favoriten");
+              },
+            ),
+
+            // Eintrag 2: Meine Rezepte
+            ListTile(
+              title: const Text('Meine Rezepte'),
+              onTap: () {
+                Navigator.pop(context);
+                // context.go('/my-recipes'); // TODO: Route einfügen
+                print("Navigiere zu Meine Rezepte");
+              },
+            ),
+          ],
+        ),
+      ),
+
+      // ---------------------------------------------------------
+      // 3. BODY (Der Inhalt der Seite)
+      // ---------------------------------------------------------
       body: FutureBuilder<List<Recipe>>(
         future: _recipesFuture,
         builder: (context, snapshot) {
@@ -58,53 +125,23 @@ class _StartseitePagesState extends State<StartseitePages> {
             return const Center(child: Text('Noch keine Rezepte vorhanden.'));
           }
 
-          // -----------------------------------------------------------
-          // DATA PREPARATION (Sorting & Filtering)
-          // -----------------------------------------------------------
-
-          // 1. Neueste Rezepte (Assuming the API returns them, or we sort by ID/Date)
+          // Data Preparation...
           final newestRecipes = List<Recipe>.from(allRecipes); 
-          // newestRecipes.sort((a, b) => b.createdAt.compareTo(a.createdAt)); // Uncomment if you have a date field
-
-          // 2. Top Rezepte je nach Ernährungsweise (Placeholder Logic)
-          // TODO: Connect this to the user's actual profile preference (e.g., from Riverpod)
-          // For now, we simulate a "Vegetarian" preference or just show a mix.
-          final dietRecipes = allRecipes.where((r) {
-             // Example: return r.isVegetarian == true;
-             return true; // Returns all for now until you define the filter
-          }).take(5).toList();
-
-          // 3. Top der Woche (High rating + Created recently)
-          // Since we might not have 'rating' or 'date' yet, we take the first 3 as a dummy.
+          final dietRecipes = allRecipes.take(5).toList();
           final topWeekRecipes = allRecipes.take(3).toList(); 
-
-          // 4. Top des Monats
-          // We take a different slice or sort differently
           final topMonthRecipes = allRecipes.skip(3).take(3).toList();
 
           return SingleChildScrollView(
             child: Column(
               children: <Widget>[
                 const SizedBox(height: 20),
-                
-                // SECTION 1: Top Rezepte je nach Ernährungsweise
                 _buildRealRecipeSection(context, 'Für dich ausgewählt', dietRecipes),
-                
                 const SizedBox(height: 10),
-
-                // SECTION 2: Neueste Rezepte
                 _buildRealRecipeSection(context, 'Neueste Rezepte', newestRecipes),
-                
                 const SizedBox(height: 10),
-
-                // SECTION 3: Top Rezepte der Woche
                 _buildRealRecipeSection(context, 'Top der Woche', topWeekRecipes),
-
                 const SizedBox(height: 10),
-
-                // SECTION 4: Top Rezepte des Monats
                 _buildRealRecipeSection(context, 'Top des Monats', topMonthRecipes),
-                
                 const SizedBox(height: 40),
               ],
             ),
@@ -114,14 +151,12 @@ class _StartseitePagesState extends State<StartseitePages> {
     );
   }
 
-  // --- HELPER WIDGET ---
   Widget _buildRealRecipeSection(BuildContext context, String title, List<Recipe> recipes) {
     if (recipes.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Title Row
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Row(
@@ -135,16 +170,12 @@ class _StartseitePagesState extends State<StartseitePages> {
                     ),
               ),
               TextButton(
-                onPressed: () {
-                  // TODO: Navigate to a "See All" list
-                },
+                onPressed: () {},
                 child: const Text('Alle'),
               ),
             ],
           ),
         ),
-        
-        // Horizontal List
         SizedBox(
           height: 260, 
           child: ListView.builder(

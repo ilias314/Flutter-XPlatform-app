@@ -45,7 +45,7 @@ class _StartseitePagesState extends State<StartseitePages> {
         child: Column(
           children: const <Widget>[
             // 1. Top Rezepte je nach Profil
-            RecipeSection(title: 'Top Rezepte je nach Profil'),
+            RecipeSection(title: 'Top Rezepte je nach Ernährungsweise'),
             
             SizedBox(height: 16.0), 
             

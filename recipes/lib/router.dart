@@ -8,7 +8,9 @@ import 'main_scaffold.dart';
 import 'pages/login_screen.dart';
 import 'pages/register_screen.dart';
 import 'pages/search_screen.dart';
-import 'pages/recipe_detail_screen.dart'; // Ensure this import exists!
+import 'pages/recipe_detail_screen.dart'; 
+import 'pages/favorite_list_screen.dart';
+
 
 final router = GoRouter(
   initialLocation: '/',
@@ -48,6 +50,12 @@ final router = GoRouter(
         // Pass the ID to the screen
         return RecipeDetailScreen(recipeId: id!);
       },
+    ),
+
+    //6. Favorite Liste
+    GoRoute(
+      path: '/favorites',  // Darauf wartet dein Burger-Menü
+      builder: (context, state) => const FavoriteListScreen(),
     ),
   ],
 

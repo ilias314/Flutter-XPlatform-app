@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:recipes/data/recipe_repository.dart'; 
 import 'package:recipes/models/recipe.dart'; 
-import 'package:recipes/widgets/recipe_card.dart'; 
+import 'package:recipes/widgets/recipe_card.dart';
 
 class StartseitePages extends StatefulWidget {
   const StartseitePages({super.key});
@@ -87,7 +87,7 @@ class _StartseitePagesState extends State<StartseitePages> {
               onTap: () {
                 // Erst den Drawer schließen, dann navigieren
                 Navigator.pop(context); 
-                // context.go('/favorites'); // TODO: Route einfügen
+                context.push('/favorites');
                 print("Navigiere zu Favoriten");
               },
             ),

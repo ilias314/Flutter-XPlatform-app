@@ -1,90 +1,123 @@
 import 'package:flutter/material.dart';
-import 'package:recipes/widgets/ui_utils.dart'; 
+import 'package:recipes/widgets/ui_utils.dart';
+import '../models/recipe.dart'; // <--- 1. WICHTIG: Importiere das Model
 
-/// Eine spezielle Version der Rezeptkarte, die für den Wochenplan
-/// optimiert ist (Layout: Bild links, Textdetails rechts).
 class WochenplanRecipeCard extends StatelessWidget {
-  const WochenplanRecipeCard({super.key});
+  // -------------------------------------------------------
+  // 2. HIER IST DIE DEFINITION, DIE DIR GEFEHLT HAT:
+  // -------------------------------------------------------
+  final Recipe? recipe; 
+
+  const WochenplanRecipeCard({
+    super.key,
+    this.recipe, // <--- Das macht den Parameter 'recipe' verfügbar
+  });
+  // -------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
     return Card(
       elevation: 2.0,
+      margin: EdgeInsets.zero, 
       child: InkWell(
-        onTap: () => showNotImplementedSnackbar(context),
+        onTap: () {
+          if (recipe != null) {
+            // Hier nutzen wir .name, da dein Model so heißt
+            print("Klicke auf: ${recipe!.name}");
+            // Später: context.push('/recipe/${recipe!.id}', extra: recipe);
+          } else {
+            showNotImplementedSnackbar(context);
+          }
+        },
         child: Padding(
           padding: const EdgeInsets.all(8.0),
-          
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start, 
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               
-              // 1. Linke Seite: Bild-Placeholder (GRÖSSE WIRD HIER ANGEPASST)
+              // --- Linke Seite: Bild ---
               Container(
-                // ANPASSUNG DER BREITE: Hier können Sie die Zahl ändern, z.B. 140
-                width: 200, // Erhöhte Breite für die Foto-Anzeige
-                height: double.infinity, 
+                width: 140, 
+                height: 100, 
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(4.0),
                   color: Colors.grey.shade100,
+                  // Bild laden, falls vorhanden
+                  image: (recipe != null && recipe!.imageUrl != null && recipe!.imageUrl!.isNotEmpty)
+                      ? DecorationImage(
+                          image: NetworkImage(recipe!.imageUrl!),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
                 ),
-                child: const Center(
-                  child: Icon(
-                    Icons.photo_size_select_actual_outlined,
-                    size: 40, // Optional: Icon-Größe anpassen
-                    color: Colors.grey,
-                  ),
-                ),
+                // Platzhalter-Icon, falls kein Bild
+                child: (recipe == null || recipe!.imageUrl == null || recipe!.imageUrl!.isEmpty)
+                    ? const Center(
+                        child: Icon(Icons.photo_size_select_actual_outlined, size: 40, color: Colors.grey),
+                      )
+                    : null,
               ),
               
               const SizedBox(width: 10.0), 
               
-              // 2. Rechte Seite: Textdetails
+              // --- Rechte Seite: Text ---
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start, 
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween, 
-                  children: <Widget>[
-                    
-                    // A. Name des Rezepts und Favoriten-Icon
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            'Name des Rezepts', 
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
+                child: SizedBox(
+                  height: 100,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      
+                      // A. Name & Herz
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              // ACHTUNG: Hier nutzen wir 'name' passend zu deinem Model
+                              recipe?.name ?? 'Name des Rezepts', 
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 2,
+                            ),
                           ),
-                        ),
-                        const Icon(Icons.favorite_border, size: 20),
-                      ],
-                    ),
-                    const SizedBox(width: 5),
-                    // B. Bewertung und Schwierigkeit 
-                    const Row(
-                      children: [
-                        Icon(Icons.star, color: Colors.amber, size: 15),
-                        Text('4.5', style: TextStyle(fontSize: 12)),
-                        SizedBox(width: 15),
-                        Text('Einfach', style: TextStyle(fontSize: 12)),
-                      ],
-                    ),
-                    const SizedBox(width: 5),
-                    // C. Zeit und Gerichttyp
-                    const Row(
-                      children: [
-                        Icon(Icons.timer, size: 13),
-                        Text('Zeit', style: TextStyle(fontSize: 12)),
-                        SizedBox(width: 15),
-                        Icon(Icons.restaurant_menu, size: 13),
-                        Text('Gerichttyp', style: TextStyle(fontSize: 12)),
-                      ],
-                    ),
-                    const SizedBox(width: 5),
-                  ],
+                          Icon(
+                            recipe != null ? Icons.favorite : Icons.favorite_border, 
+                            size: 20,
+                            color: recipe != null ? Colors.red : null,
+                          ),
+                        ],
+                      ),
+
+                      // B. Bewertung (Dummy)
+                      const Row(
+                        children: [
+                          Icon(Icons.star, color: Colors.amber, size: 15),
+                          Text('4.5', style: TextStyle(fontSize: 12)),
+                          SizedBox(width: 15),
+                          Text('Einfach', style: TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                      
+                      // C. Zeit (Echte Daten aus Model)
+                      Row(
+                        children: [
+                          const Icon(Icons.timer, size: 13),
+                          const SizedBox(width: 4),
+                          Text(
+                             recipe != null ? '${recipe!.preparationTime} min' : '30 min',
+                             style: const TextStyle(fontSize: 12)
+                          ),
+                          const SizedBox(width: 15),
+                          const Icon(Icons.restaurant_menu, size: 13),
+                          const SizedBox(width: 4),
+                          const Text('Gericht', style: TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],

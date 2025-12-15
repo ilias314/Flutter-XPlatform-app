@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:recipes/data/recipe_repository.dart'; 
 import 'package:recipes/models/recipe.dart'; 
-import 'package:recipes/pages/recipe_detail_screen.dart'; 
 import 'package:recipes/widgets/recipe_card.dart'; 
 
 class StartseitePages extends StatefulWidget {
@@ -14,13 +13,11 @@ class StartseitePages extends StatefulWidget {
 }
 
 class _StartseitePagesState extends State<StartseitePages> {
-  // We store the "Future" here so we can load data when the screen opens
   late Future<List<Recipe>> _recipesFuture;
 
   @override
   void initState() {
     super.initState();
-    // 1. Fetch the data immediately
     final repo = RecipeRepository(Supabase.instance.client);
     _recipesFuture = repo.getRecipes();
   }
@@ -44,53 +41,71 @@ class _StartseitePagesState extends State<StartseitePages> {
           ),
         ],
       ),
-      // 2. The Body is now a FutureBuilder
       body: FutureBuilder<List<Recipe>>(
         future: _recipesFuture,
         builder: (context, snapshot) {
-          // A. Loading State
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // B. Error State
           if (snapshot.hasError) {
             return Center(child: Text('Fehler: ${snapshot.error}'));
           }
 
-          // C. Data Ready
           final allRecipes = snapshot.data ?? [];
 
           if (allRecipes.isEmpty) {
-            return const Center(
-              child: Text(
-                'Noch keine Rezepte.\nErstelle das erste!',
-                textAlign: TextAlign.center,
-              ),
-            );
+            return const Center(child: Text('Noch keine Rezepte vorhanden.'));
           }
 
-          // D. Sort/Filter Logic (Optional: Organize your lists)
-          // For now, we just reverse the list for "Newest" and shuffle/sort for "Top"
-          final newestRecipes = List<Recipe>.from(allRecipes); // Already sorted by date in Repo
-          
-          // Example: Filter mostly high rated (dummy logic if rating is 0)
-          final topRecipes = allRecipes.where((r) => r.preparationTime < 60).toList();
+          // -----------------------------------------------------------
+          // DATA PREPARATION (Sorting & Filtering)
+          // -----------------------------------------------------------
+
+          // 1. Neueste Rezepte (Assuming the API returns them, or we sort by ID/Date)
+          final newestRecipes = List<Recipe>.from(allRecipes); 
+          // newestRecipes.sort((a, b) => b.createdAt.compareTo(a.createdAt)); // Uncomment if you have a date field
+
+          // 2. Top Rezepte je nach Ernährungsweise (Placeholder Logic)
+          // TODO: Connect this to the user's actual profile preference (e.g., from Riverpod)
+          // For now, we simulate a "Vegetarian" preference or just show a mix.
+          final dietRecipes = allRecipes.where((r) {
+             // Example: return r.isVegetarian == true;
+             return true; // Returns all for now until you define the filter
+          }).take(5).toList();
+
+          // 3. Top der Woche (High rating + Created recently)
+          // Since we might not have 'rating' or 'date' yet, we take the first 3 as a dummy.
+          final topWeekRecipes = allRecipes.take(3).toList(); 
+
+          // 4. Top des Monats
+          // We take a different slice or sort differently
+          final topMonthRecipes = allRecipes.skip(3).take(3).toList();
 
           return SingleChildScrollView(
             child: Column(
               children: <Widget>[
                 const SizedBox(height: 20),
                 
-                // 1. Neueste Rezepte (The main list)
+                // SECTION 1: Top Rezepte je nach Ernährungsweise
+                _buildRealRecipeSection(context, 'Für dich ausgewählt', dietRecipes),
+                
+                const SizedBox(height: 10),
+
+                // SECTION 2: Neueste Rezepte
                 _buildRealRecipeSection(context, 'Neueste Rezepte', newestRecipes),
                 
-                const SizedBox(height: 20),
+                const SizedBox(height: 10),
+
+                // SECTION 3: Top Rezepte der Woche
+                _buildRealRecipeSection(context, 'Top der Woche', topWeekRecipes),
+
+                const SizedBox(height: 10),
+
+                // SECTION 4: Top Rezepte des Monats
+                _buildRealRecipeSection(context, 'Top des Monats', topMonthRecipes),
                 
-                // 2. Schnelle Rezepte (Simulated "Top" category)
-                _buildRealRecipeSection(context, 'Schnelle Küche (< 60 Min)', topRecipes),
-                
-                const SizedBox(height: 20),
+                const SizedBox(height: 40),
               ],
             ),
           );
@@ -99,15 +114,14 @@ class _StartseitePagesState extends State<StartseitePages> {
     );
   }
 
-  // --- HELPER WIDGET: Displays a horizontal list of RecipeCards ---
+  // --- HELPER WIDGET ---
   Widget _buildRealRecipeSection(BuildContext context, String title, List<Recipe> recipes) {
-    // 1. Safety Check: If no recipes, hide the entire section
     if (recipes.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 2. Section Title & "See All" Button
+        // Title Row
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Row(
@@ -117,36 +131,31 @@ class _StartseitePagesState extends State<StartseitePages> {
                 title,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
+                      fontSize: 18,
                     ),
               ),
               TextButton(
                 onPressed: () {
-                  // TODO: Implement a "See All" page later
-                  // context.push('/all-recipes');
+                  // TODO: Navigate to a "See All" list
                 },
-                child: const Text('Alle ansehen'),
+                child: const Text('Alle'),
               ),
             ],
           ),
         ),
         
-        const SizedBox(height: 10),
-
-        // 3. The Horizontal List
+        // Horizontal List
         SizedBox(
-          height: 260, // Fixed height to fit the Card
+          height: 260, 
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             itemCount: recipes.length,
             itemBuilder: (context, index) {
-              final recipe = recipes[index]; // <--- Get the specific recipe object
-              
+              final recipe = recipes[index];
               return Container(
-                width: 200, // Fixed width for each card
+                width: 200, 
                 margin: const EdgeInsets.symmetric(horizontal: 6),
-                
-                // 4. Use the RecipeCard Widget
                 child: RecipeCard(recipe: recipe), 
               );
             },

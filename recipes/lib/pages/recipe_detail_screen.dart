@@ -5,52 +5,59 @@ import 'package:recipes/data/recipe_repository.dart';
 import 'package:recipes/widgets/ui_utils.dart';
 
 class RecipeDetailScreen extends StatefulWidget {
-  final Recipe recipe; // The real data object
+  // We accept the ID string now, not the full object
+  final String recipeId; 
 
-  const RecipeDetailScreen({super.key, required this.recipe});
+  const RecipeDetailScreen({super.key, required this.recipeId});
 
   @override
   State<RecipeDetailScreen> createState() => _RecipeDetailScreenState();
 }
 
 class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
-  late int _currentPortions;
-  late Future<List<Map<String, dynamic>>> _ingredientsFuture;
+  late Future<Recipe> _recipeFuture;
+  Future<List<Map<String, dynamic>>>? _ingredientsFuture;
+  
+  // State for portions
+  int _currentPortions = 1;
   
   // Controllers
-  final ScrollController _scrollController = ScrollController();
-  final GlobalKey _commentsKey = GlobalKey();
   final TextEditingController _commentController = TextEditingController();
-  
-  // Placeholder comments (Real backend comments would need a separate table)
-  final List<String> _comments = [];
+  final List<String> _comments = []; // Dummy comments
 
   @override
   void initState() {
     super.initState();
-    _currentPortions = widget.recipe.portions;
+    // 1. Start fetching the recipe immediately
+    _recipeFuture = _fetchRecipe();
+  }
+
+  Future<Recipe> _fetchRecipe() async {
+    // Fetch the recipe row from Supabase
+    final response = await Supabase.instance.client
+        .from('recipes')
+        .select()
+        .eq('id', widget.recipeId)
+        .single();
     
-    // Load ingredients from Supabase
+    // Create the Recipe object
+    final recipe = Recipe.fromJson(response);
+    
+    // 2. Once we have the recipe, initialize portions and fetch ingredients
+    // We do this inside the future or setState, but to keep it simple we set defaults here.
+    _currentPortions = recipe.portions > 0 ? recipe.portions : 1;
+    
+    // Start fetching ingredients
     final repo = RecipeRepository(Supabase.instance.client);
-    if (widget.recipe.id != null) {
-      _ingredientsFuture = repo.getRecipeIngredients(widget.recipe.id!);
-    } else {
-      _ingredientsFuture = Future.value([]); // Should not happen
-    }
+    _ingredientsFuture = repo.getRecipeIngredients(recipe.id!);
+    
+    return recipe;
   }
 
   // Calculate ingredient amount based on portions
-  double _calculateAmount(double baseAmount) {
-    if (widget.recipe.portions == 0) return baseAmount;
-    return (baseAmount / widget.recipe.portions) * _currentPortions;
-  }
-
-  void _scrollToComments() {
-    Scrollable.ensureVisible(
-      _commentsKey.currentContext!,
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeInOut,
-    );
+  double _calculateAmount(double baseAmount, int originalPortions) {
+    if (originalPortions == 0) return baseAmount;
+    return (baseAmount / originalPortions) * _currentPortions;
   }
 
   void _addComment() {
@@ -64,41 +71,61 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final r = widget.recipe; // Shortcut
-
     return Scaffold(
-      body: CustomScrollView(
-        controller: _scrollController,
-        slivers: <Widget>[
-          // 1. App Bar
-          _buildSliverAppBar(context, r),
+      body: FutureBuilder<Recipe>(
+        future: _recipeFuture,
+        builder: (context, snapshot) {
+          // A. Loading State
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-          // 2. Details Body
-          SliverList(
-            delegate: SliverChildListDelegate([
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    _buildHeaderSection(context, r),
-                    const SizedBox(height: 20),
-                    _buildNutritionSection(context, r),
-                    const SizedBox(height: 30),
-                    _buildIngredientsAndPortions(context),
-                    const SizedBox(height: 30),
-                    _buildActionButtons(context),
-                    const SizedBox(height: 30),
-                    _buildStepsSection(context, r),
-                    const SizedBox(height: 30),
-                    _buildCommentsSection(context, key: _commentsKey),
-                    const SizedBox(height: 50),
-                  ],
-                ),
+          // B. Error State
+          if (snapshot.hasError) {
+            return Center(child: Text("Fehler: ${snapshot.error}"));
+          }
+
+          // C. Data Ready
+          if (!snapshot.hasData) {
+            return const Center(child: Text("Rezept nicht gefunden."));
+          }
+
+          final r = snapshot.data!;
+
+          return CustomScrollView(
+            slivers: <Widget>[
+              // 1. App Bar with Image
+              _buildSliverAppBar(context, r),
+
+              // 2. Details Body
+              SliverList(
+                delegate: SliverChildListDelegate([
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        _buildHeaderSection(context, r),
+                        const SizedBox(height: 20),
+                        _buildNutritionSection(context, r),
+                        const SizedBox(height: 30),
+                        // Pass the recipe portions to helper
+                        _buildIngredientsAndPortions(context, r.portions),
+                        const SizedBox(height: 30),
+                        _buildActionButtons(context),
+                        const SizedBox(height: 30),
+                        _buildStepsSection(context, r),
+                        const SizedBox(height: 30),
+                        _buildCommentsSection(context),
+                        const SizedBox(height: 50),
+                      ],
+                    ),
+                  ),
+                ]),
               ),
-            ]),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -110,16 +137,27 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       expandedHeight: 250.0,
       pinned: true,
       stretch: true,
-      title: Text(r.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-      backgroundColor: Theme.of(context).primaryColor,
-      iconTheme: const IconThemeData(color: Colors.white),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.favorite_border),
-          onPressed: () => showNotImplementedSnackbar(context),
+      // Back button needs to be visible on top of image
+      leading: Container(
+        margin: const EdgeInsets.all(8),
+        decoration: const BoxDecoration(
+          color: Colors.black26, 
+          shape: BoxShape.circle,
         ),
-      ],
+        child: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
       flexibleSpace: FlexibleSpaceBar(
+        title: Text(
+          r.name, 
+          style: const TextStyle(
+            color: Colors.white, 
+            fontSize: 16, 
+            shadows: [Shadow(color: Colors.black, blurRadius: 10)]
+          )
+        ),
         background: r.imageUrl != null 
           ? Image.network(r.imageUrl!, fit: BoxFit.cover)
           : Container(
@@ -134,22 +172,18 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(r.name, style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-          fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor
-        )),
-        const SizedBox(height: 10),
         Row(
           children: [
-             Icon(Icons.star, color: Colors.amber, size: 20),
-             SizedBox(width: 5),
+             const Icon(Icons.star, color: Colors.amber, size: 20),
+             const SizedBox(width: 5),
              Text(r.avgRating > 0 ? r.avgRating.toStringAsFixed(1) : "Neu"),
-             SizedBox(width: 20),
-             Icon(Icons.timer, size: 18, color: Colors.grey),
-             SizedBox(width: 5),
+             const SizedBox(width: 20),
+             const Icon(Icons.timer, size: 18, color: Colors.grey),
+             const SizedBox(width: 5),
              Text('${r.preparationTime} Min'),
-             SizedBox(width: 20),
-             Icon(Icons.bar_chart, size: 18, color: Colors.grey),
-             SizedBox(width: 5),
+             const SizedBox(width: 20),
+             const Icon(Icons.bar_chart, size: 18, color: Colors.grey),
+             const SizedBox(width: 5),
              Text(r.difficulty),
           ],
         ),
@@ -158,7 +192,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   Widget _buildNutritionSection(BuildContext context, Recipe r) {
-    // Construct the list from the Recipe object
     final nutrition = [
       {'label': 'Kalorien', 'value': r.calories, 'unit': 'kcal'},
       {'label': 'Protein', 'value': r.protein, 'unit': 'g'},
@@ -175,7 +208,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           scrollDirection: Axis.horizontal,
           child: Row(
             children: nutrition.map((n) {
-              // Calculate for current portions if needed, usually nutrition is per 1 portion
               return _buildNutritionChip(
                 context, 
                 label: n['label'] as String, 
@@ -210,11 +242,11 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     );
   }
 
-  Widget _buildIngredientsAndPortions(BuildContext context) {
+  Widget _buildIngredientsAndPortions(BuildContext context, int originalPortions) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Ingredients List (FutureBuilder)
+        // Ingredients List
         Expanded(
           flex: 2,
           child: Column(
@@ -222,34 +254,39 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             children: [
               Text('Zutaten', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
-              FutureBuilder<List<Map<String, dynamic>>>(
-                future: _ingredientsFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) return const LinearProgressIndicator();
-                  if (snapshot.hasError) return const Text("Fehler beim Laden");
-                  
-                  final ingredients = snapshot.data ?? [];
-                  if (ingredients.isEmpty) return const Text("Keine Zutaten hinterlegt.");
+              
+              // We check if the future is initialized
+              if (_ingredientsFuture == null) 
+                 const LinearProgressIndicator()
+              else
+                 FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _ingredientsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) return const LinearProgressIndicator();
+                    if (snapshot.hasError) return const Text("Zutaten konnten nicht geladen werden");
+                    
+                    final ingredients = snapshot.data ?? [];
+                    if (ingredients.isEmpty) return const Text("Keine Zutaten hinterlegt.");
 
-                  return ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: ingredients.length,
-                    itemBuilder: (context, index) {
-                      final ing = ingredients[index];
-                      // Calculate dynamic amount
-                      final double amount = _calculateAmount(ing['quantity']);
-                      // Format to avoid .0 for integers
-                      final String amountStr = amount % 1 == 0 ? amount.toInt().toString() : amount.toStringAsFixed(1);
-                      
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4.0),
-                        child: Text('• $amountStr ${ing['unit']} ${ing['name']}'),
-                      );
-                    },
-                  );
-                },
-              ),
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: ingredients.length,
+                      itemBuilder: (context, index) {
+                        final ing = ingredients[index];
+                        // Calculate dynamic amount based on _currentPortions vs originalPortions
+                        final double amount = _calculateAmount(ing['quantity'] ?? 0.0, originalPortions);
+                        
+                        final String amountStr = amount % 1 == 0 ? amount.toInt().toString() : amount.toStringAsFixed(1);
+                        
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4.0),
+                          child: Text('• $amountStr ${ing['unit']} ${ing['name']}'),
+                        );
+                      },
+                    );
+                  },
+                ),
             ],
           ),
         ),
@@ -260,7 +297,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           flex: 1,
           child: Column(
             children: [
-              Text("Portionen", style: TextStyle(color: Colors.grey)),
+              const Text("Portionen", style: TextStyle(color: Colors.grey)),
               const SizedBox(height: 5),
               Container(
                 decoration: BoxDecoration(
@@ -311,8 +348,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   Widget _buildStepsSection(BuildContext context, Recipe r) {
-    // Split description into steps if possible, otherwise show full text
-    // Assuming steps are separated by newlines
     final steps = r.description.split('\n').where((s) => s.trim().isNotEmpty).toList();
 
     return Column(
@@ -350,40 +385,37 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     );
   }
 
-  Widget _buildCommentsSection(BuildContext context, {required Key key}) {
-    return Container(
-      key: key,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Kommentare (${_comments.length})', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _commentController,
-            decoration: InputDecoration(
-              hintText: 'Kommentar schreiben...',
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.send),
-                onPressed: _addComment,
-              ),
+  Widget _buildCommentsSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Kommentare (${_comments.length})', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _commentController,
+          decoration: InputDecoration(
+            hintText: 'Kommentar schreiben...',
+            border: const OutlineInputBorder(),
+            suffixIcon: IconButton(
+              icon: const Icon(Icons.send),
+              onPressed: _addComment,
             ),
           ),
-          const SizedBox(height: 15),
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _comments.length,
-            itemBuilder: (context, index) {
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(_comments[index], style: const TextStyle(fontSize: 14)),
-                leading: const Icon(Icons.chat_bubble_outline, size: 16),
-              );
-            },
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 15),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _comments.length,
+          itemBuilder: (context, index) {
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(_comments[index], style: const TextStyle(fontSize: 14)),
+              leading: const Icon(Icons.chat_bubble_outline, size: 16),
+            );
+          },
+        ),
+      ],
     );
   }
 }

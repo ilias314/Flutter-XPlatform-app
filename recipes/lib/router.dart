@@ -8,58 +8,59 @@ import 'main_scaffold.dart';
 import 'pages/login_screen.dart';
 import 'pages/register_screen.dart';
 import 'pages/search_screen.dart';
-import 'main_scaffold.dart';
+import 'pages/recipe_detail_screen.dart'; // Ensure this import exists!
 
 final router = GoRouter(
   initialLocation: '/',
-  
-  // Listen to Auth Changes
   refreshListenable: GoRouterRefreshStream(Supabase.instance.client.auth.onAuthStateChange),
 
   routes: [
-    // 1. HOME (Private)
-    // We do NOT pass a child. MainScaffold handles the tabs internally.
+    // 1. HOME
     GoRoute(
       path: '/',
       builder: (context, state) => const MainScaffold(), 
     ),
 
-    // 2. LOGIN (Public)
-    // We do NOT wrap this in MainScaffold. It should be full screen.
+    // 2. LOGIN
     GoRoute(
       path: '/login',
       builder: (context, state) => const LoginScreen(),
     ),
 
-    // 3. SIGNUP (Public)
+    // 3. SIGNUP
     GoRoute(
       path: '/signup',
       builder: (context, state) => const SignupScreen(),
     ),
 
-    // 4. SEARCH (Standalone)
-    // Usually, search is a full-screen page that sits on top of everything.
+    // 4. SEARCH
     GoRoute(
       path: '/search',
       builder: (context, state) => const SearchScreen(),
     ),
+
+    // 5. RECIPE DETAIL (The Missing Route)
+    GoRoute(
+      path: '/recipes/:id',
+      builder: (context, state) {
+        // We extract the ID from the URL (e.g. "c5b9...")
+        final id = state.pathParameters['id'];
+        // Pass the ID to the screen
+        return RecipeDetailScreen(recipeId: id!);
+      },
+    ),
   ],
 
-  // THE GUARD (Bouncer)
   redirect: (context, state) {
     final session = Supabase.instance.client.auth.currentSession;
-    
-    // Check where the user is trying to go
     final isLoggingIn = state.uri.toString() == '/login';
     final isSigningUp = state.uri.toString() == '/signup';
     final userIsLoggedIn = session != null;
 
-    // Rule 1: If NOT logged in, and trying to go to a private page -> Force Login
     if (!userIsLoggedIn && !isLoggingIn && !isSigningUp) {
       return '/login';
     }
 
-    // Rule 2: If ALREADY logged in, and trying to go to Login -> Force Home
     if (userIsLoggedIn && (isLoggingIn || isSigningUp)) {
       return '/';
     }
@@ -68,7 +69,6 @@ final router = GoRouter(
   },
 );
 
-// HELPER CLASS
 class GoRouterRefreshStream extends ChangeNotifier {
   late final StreamSubscription<AuthState> _subscription;
 

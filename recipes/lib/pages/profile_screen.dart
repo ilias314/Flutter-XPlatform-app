@@ -61,7 +61,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   
                   // Optional: Kleiner Edit-Button direkt am Bild
-                  Container(
+                  /*Container(
                     height: 35,
                     width: 35,
                     decoration: BoxDecoration(
@@ -74,7 +74,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
                       onPressed: () => _showEditProfileSheet(context),
                     ),
-                  ),
+                  ),*/
                 ],
               ),
             ),

@@ -5,8 +5,7 @@ import 'dart:async'; // Required for the stream listener
 
 // 1. Correct Imports based on your new structure
 import 'main_scaffold.dart'; 
-import 'pages/login_screen.dart';
-import 'pages/register_screen.dart';
+import 'pages/login_screen.dart'; 
 
 final router = GoRouter(
   initialLocation: '/',
@@ -22,12 +21,10 @@ final router = GoRouter(
     ),
     GoRoute(
       path: '/login',
-      builder: (context, state) => const LoginScreen(),
+      // Wir nutzen jetzt hier deinen neuen Screen, der beides kann (Login + Popup Register)
+      builder: (context, state) => const LoginScreen(), 
     ),
-    GoRoute(
-      path: '/signup',
-      builder: (context, state) => const SignupScreen(),
-    ),
+    // Die Route '/signup' wurde gelöscht, da sie jetzt ein Pop-up ist.
   ],
 
   // THE GUARD: Protects private pages
@@ -36,16 +33,17 @@ final router = GoRouter(
     
     // Check where the user is trying to go
     final isLoggingIn = state.uri.toString() == '/login';
-    final isSigningUp = state.uri.toString() == '/signup';
+    // isSigningUp Check ist nicht mehr nötig, da es keine separate Page ist.
+    
     final userIsLoggedIn = session != null;
 
     // Rule 1: Not logged in? Kick to Login.
-    if (!userIsLoggedIn && !isLoggingIn && !isSigningUp) {
+    if (!userIsLoggedIn && !isLoggingIn) {
       return '/login';
     }
 
     // Rule 2: Already logged in? Kick to Home.
-    if (userIsLoggedIn && (isLoggingIn || isSigningUp)) {
+    if (userIsLoggedIn && isLoggingIn) {
       return '/';
     }
 

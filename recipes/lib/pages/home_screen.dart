@@ -67,13 +67,6 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
           ),
         ],
       ),
-<<<<<<< HEAD
-      body: SingleChildScrollView(
-        child: Column(
-          children: const <Widget>[
-            // 1. Top Rezepte je nach Profil
-            RecipeSection(title: 'Top Rezepte je nach Ernährungsweise'),
-=======
 
       drawer: Drawer(
         child: ListView(
@@ -100,7 +93,6 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
                 ],
               ),
             ),
->>>>>>> origin/home_screen_v2
             
             ListTile(
               title: const Text('Favoriten'),

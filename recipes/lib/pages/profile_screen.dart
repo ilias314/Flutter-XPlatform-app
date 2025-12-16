@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '/data/auth_repository.dart'; 
+import 'package:recipes/data/auth_repository.dart';
+import 'package:recipes/data/profile_repository.dart'; 
 import 'package:recipes/widgets/recipe_section.dart';
 import 'package:recipes/widgets/ui_utils.dart';
 
-// Enum für die Auswahlmöglichkeiten
 enum DishPreference { alles, pescetarisch, vegetarisch, vegan }
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -15,22 +15,110 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  // Standard-Auswahl
   DishPreference _currentPreference = DishPreference.alles;
-  
-  // Dummy-Status für den Dark Mode (nur für die UI-Demo)
+  bool _isLoading = true; 
   bool _isDarkMode = false; 
 
   @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  // --- 1. LOAD DATA FROM SUPABASE ---
+  Future<void> _loadUserProfile() async {
+    final profileData = await ref.read(profileRepositoryProvider).getProfile();
+    
+    if (profileData != null && profileData['dietary_preferences'] != null) {
+      final json = profileData['dietary_preferences'];
+      final String? savedPref = json['preference'];
+
+      if (savedPref != null) {
+        if (mounted) {
+          setState(() {
+            _currentPreference = _stringToEnum(savedPref);
+          });
+        }
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  DishPreference _stringToEnum(String value) {
+    switch (value) {
+      case 'Pescetarisch': return DishPreference.pescetarisch;
+      case 'Vegetarisch': return DishPreference.vegetarisch;
+      case 'Vegan': return DishPreference.vegan;
+      default: return DishPreference.alles;
+    }
+  }
+
+  String _enumToString(DishPreference pref) {
+    switch (pref) {
+      case DishPreference.pescetarisch: return 'Pescetarisch';
+      case DishPreference.vegetarisch: return 'Vegetarisch';
+      case DishPreference.vegan: return 'Vegan';
+      default: return 'Alles';
+    }
+  }
+
+  // --- 2. SAVE DATA TO SUPABASE ---
+  Future<void> _updatePreference(DishPreference? newValue) async {
+  if (newValue == null || newValue == _currentPreference) return;
+  
+  // Update UI immediately for better UX
+  setState(() {
+    _currentPreference = newValue;
+  });
+  
+  try {
+    final String stringValue = _enumToString(newValue);
+    print('🔄 Saving preference: $stringValue');
+    
+    // Save to Supabase in background
+    await ref.read(profileRepositoryProvider).updateDietaryPreference(stringValue);
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ernährungsweise gespeichert'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  } catch (e) {
+    print('❌ Error saving preference: $e');
+    
+    if (mounted) {
+      // Show error and revert UI
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Fehler beim Speichern: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      
+      // Reload from database to get correct state
+      await _loadUserProfile();
+    }
+  }
+}
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Profil"),
         centerTitle: false,
         actions: [
-          // ---------------------------------------------------
-          // DAS ZAHNRAD (Öffnet jetzt die Einstellungen)
-          // ---------------------------------------------------
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () {
@@ -44,23 +132,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           children: [
             const SizedBox(height: 30),
 
-
-            // ------------------------------------------
-            // NEU: PROFILBILD ÜBER DEM NAMEN
-            // ------------------------------------------
+            // PROFILBILD
             Center(
               child: Stack(
                 alignment: Alignment.bottomRight,
                 children: [
-                  // Das eigentliche Bild (Platzhalter)
                   const CircleAvatar(
-                    radius: 60, // Größe des Bildes
+                    radius: 60, 
                     backgroundColor: Colors.grey,
-                    // Später hier: backgroundImage: NetworkImage(user.photoUrl),
                     child: Icon(Icons.person, size: 80, color: Colors.white),
                   ),
                   
-                  // Optional: Kleiner Edit-Button direkt am Bild
                   Container(
                     height: 35,
                     width: 35,
@@ -81,24 +163,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             
             const SizedBox(height: 10),
             
-            // ------------------------------------------
-            // TEIL 1: NAME & PROFIL BEARBEITEN (Responsive)
-            // ------------------------------------------
+            // NAME
             const Text(
               "UserName", 
               style: TextStyle(fontSize: 28, fontWeight: FontWeight.w300),
             ),
             
-            
             const SizedBox(height: 20),
             
-            // RESPONSIVE LÖSUNG: Padding bestimmt die Breite
+            // PROFIL BEARBEITEN BUTTON
             Padding(
-              // 40 Pixel Abstand links und rechts -> Button füllt den Rest
               padding: const EdgeInsets.symmetric(horizontal: 40.0),
               child: SizedBox(
-                height: 48, // Feste Höhe bleibt ok
-                width: double.infinity, // Nimm so viel Breite wie möglich (minus Padding)
+                height: 48, 
+                width: double.infinity, 
                 child: OutlinedButton(
                   onPressed: () => _showEditProfileSheet(context),
                   style: OutlinedButton.styleFrom(
@@ -111,9 +189,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     children: [
                       Text("Profil bearbeiten", style: TextStyle(color: Colors.black, fontSize: 16)),
                       SizedBox(width: 8),
-                       
                       Icon(Icons.edit, size: 18, color: Colors.black),
-                      
                     ],
                   ),
                 ),
@@ -122,11 +198,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             
             const SizedBox(height: 30),
 
-            // ------------------------------------------
-            // TEIL 2: ERNÄHRUNGSWEISE (Gleiche Breite durch gleiches Padding)
-            // ------------------------------------------
+            // ERNÄHRUNGSWEISE DROPDOWN
             Padding(
-              // WICHTIG: Genau dasselbe Padding wie oben (40), damit sie gleich breit sind
               padding: const EdgeInsets.symmetric(horizontal: 40.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -141,7 +214,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   
                   Container(
                     height: 48,
-                    width: double.infinity, // Füllt den Bereich zwischen den 40px Rändern
+                    width: double.infinity, 
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.grey, width: 1),
@@ -151,7 +224,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<DishPreference>(
                         value: _currentPreference,
-                        
                         hint: const Row(
                           children: [
                             Icon(Icons.touch_app_outlined, color: Colors.grey, size: 20),
@@ -159,10 +231,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             Text("Bitte wählen"),
                           ],
                         ),
-                        
                         isExpanded: true, 
                         icon: const Icon(Icons.arrow_drop_down_circle_outlined, color: Colors.black),
-                        
                         items: const [
                           DropdownMenuItem(
                             value: DishPreference.alles,
@@ -205,11 +275,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             ),
                           ),
                         ],
-                        onChanged: (DishPreference? newValue) {
+                          onChanged: (DishPreference? newValue) {
                           if (newValue != null) {
-                            setState(() {
-                              _currentPreference = newValue;
-                            });
+                            _updatePreference(newValue);
                           }
                         },
                       ),
@@ -221,15 +289,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
             const SizedBox(height: 50),
 
-            // ------------------------------------------
-            // TEIL 3: REZEPTE
-            // ------------------------------------------
             const RecipeSection(title: "Favoriten"),
-            
             const SizedBox(height: 50),
-            
             const RecipeSection(title: "Meine Rezepte"),
-            
             const SizedBox(height: 40),  
           ],
         ),
@@ -238,7 +300,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   // ---------------------------------------------------
-  // FUNKTION 1: PROFIL BEARBEITEN (Name, Bild, Email)
+  // FUNKTION 1: PROFIL BEARBEITEN
   // ---------------------------------------------------
   void _showEditProfileSheet(BuildContext context) {
     showModalBottomSheet(
@@ -283,14 +345,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   // ---------------------------------------------------
-  // FUNKTION 2: EINSTELLUNGEN (Sign Out, Delete, Dark Mode)
+  // FUNKTION 2: EINSTELLUNGEN
   // ---------------------------------------------------
   void _showSettingsSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
-        // StatefulBuilder sorgt dafür, dass der Switch sich bewegt
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setSheetState) {
             return Padding(
@@ -306,11 +367,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                   // 1. Dark Mode Switch
                   SwitchListTile(
-                    // FIX 1: Prüfen ob null, sonst false nehmen
-                    secondary: Icon((_isDarkMode ?? false) ? Icons.dark_mode : Icons.light_mode),
+                    secondary: Icon((_isDarkMode) ? Icons.dark_mode : Icons.light_mode),
                     title: const Text("Dark Mode"),
-                    // FIX 2: Auch hier: Wenn null, dann false
-                    value: _isDarkMode ?? false,
+                    value: _isDarkMode,
                     onChanged: (bool value) {
                       setSheetState(() {
                         _isDarkMode = value;
@@ -325,7 +384,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     leading: const Icon(Icons.logout),
                     title: const Text("Abmelden"),
                     onTap: () async {
-                      Navigator.pop(context); // Schließt das Menü
+                      Navigator.pop(context);
                       await ref.read(authRepositoryProvider).signOut();
                     },
                   ),

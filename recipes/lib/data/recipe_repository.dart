@@ -110,9 +110,86 @@ class RecipeRepository {
     return newIngredient['id'];
   }
   
-  /// Helper: Fetch all recipes for the Home Screen
+  /// Helper: Fetch all recipes for the Home Screen with categories
   Future<List<Recipe>> getRecipes() async {
-    final data = await _client.from('recipes').select().order('created_at', ascending: false);
+    final data = await _client
+        .from('recipes')
+        .select('''
+          *,
+          recipe_categories (
+            categories (
+              name
+            )
+          )
+        ''')
+        .order('created_at', ascending: false);
+    
     return data.map((json) => Recipe.fromJson(json)).toList();
+  }
+  
+  /// Fetch recipes filtered by category names
+  Future<List<Recipe>> getRecipesByCategories(List<String> categoryNames) async {
+    if (categoryNames.isEmpty) {
+      return getRecipes();
+    }
+    
+    // First get category IDs from names
+    final categoryData = await _client
+        .from('categories')
+        .select('id')
+        .inFilter('name', categoryNames);
+    
+    final categoryIds = categoryData.map((c) => c['id'] as String).toList();
+    
+    if (categoryIds.isEmpty) {
+      return [];
+    }
+    
+    // Then get recipes that have these categories
+    final recipeLinks = await _client
+        .from('recipe_categories')
+        .select('recipe_id')
+        .inFilter('category_id', categoryIds);
+    
+    final recipeIds = recipeLinks.map((r) => r['recipe_id'] as String).toSet().toList();
+    
+    if (recipeIds.isEmpty) {
+      return [];
+    }
+    
+    // Finally fetch the full recipe data
+    final data = await _client
+        .from('recipes')
+        .select('''
+          *,
+          recipe_categories (
+            categories (
+              name
+            )
+          )
+        ''')
+        .inFilter('id', recipeIds)
+        .order('avg_rating', ascending: false);
+    
+    return data.map((json) => Recipe.fromJson(json)).toList();
+  }
+  /// Fetch ingredients for a specific recipe
+  /// Returns a list like: [{'name': 'Tomato', 'quantity': 2.0, 'unit': 'pcs'}
+  Future<List<Map<String, dynamic>>> getRecipeIngredients(String recipeId) async {
+    try {
+      final response = await _client
+          .from('recipe_ingredients')
+          .select('quantity, unit, ingredients(name)') // Join with ingredients table
+          .eq('recipe_id', recipeId);
+      
+      return List<Map<String, dynamic>>.from(response.map((item) => {
+        'name': item['ingredients']['name'], // Access nested data
+        'quantity': (item['quantity'] ?? 0).toDouble(),
+        'unit': item['unit'] ?? '',
+      }));
+    } catch (e) {
+      print('Error loading ingredients: $e');
+      return [];
+    }
   }
 }

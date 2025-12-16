@@ -16,7 +16,7 @@ Future<void> main() async {
   // 3. Wrap MyApp with ProviderScope so the whole app can use Providers
   runApp(const ProviderScope(child: MyApp()));
 }
-
+ 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 

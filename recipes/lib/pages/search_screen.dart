@@ -186,7 +186,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ],
         ),
       ),
-    );
+    ); 
   }
 }
 class _RecipeCard extends StatelessWidget {

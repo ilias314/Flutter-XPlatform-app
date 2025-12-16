@@ -76,7 +76,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 await ref.read(authRepositoryProvider).signUp(
                       email: regEmailController.text.trim(),
                       password: regPasswordController.text.trim(),
-                      // username: regUsernameController.text.trim(), // Falls dein Repo das unterstützt
+                      username: regUsernameController.text.trim(), // Falls dein Repo das unterstützt
                     );
 
                 if (context.mounted) {

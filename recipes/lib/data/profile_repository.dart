@@ -1,7 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart'; //  Wichtig für Laptop-Upload
+import 'dart:typed_data'; // für die Bild-Daten
 
-// The Provider
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
   return ProfileRepository(Supabase.instance.client);
 });
@@ -11,81 +12,95 @@ class ProfileRepository {
 
   ProfileRepository(this._supabase);
 
-  // 1. Get Profile
+  // 1. Profil laden
   Future<Map<String, dynamic>?> getProfile() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return null;
-
     try {
-      final data = await _supabase
-          .from('profiles')
-          .select()
-          .eq('id', user.id)
-          .single();
-      return data;
+      return await _supabase.from('profiles').select().eq('id', user.id).single();
     } catch (e) {
-      // Falls noch kein Profil existiert, ist das kein kritischer Fehler
-      print('Info fetching profile: $e'); 
       return null;
     }
   }
 
-  // 2. Update Dietary Preference
+  // 2. Ernährungsweise ändern
   Future<void> updateDietaryPreference(String preference) async {
     final user = _supabase.auth.currentUser;
-    if (user == null) throw Exception('No user logged in');
-
-    try {
-      // Upsert: Erstellt oder aktualisiert das Profil
-      await _supabase.from('profiles').upsert({
-        'id': user.id,
-        'email': user.email, // E-Mail mitspeichern zur Sicherheit
-        'dietary_preferences': {'preference': preference},
-      });
-      
-      print('✅ Dietary preference updated');
-    } catch (e) {
-      print('❌ Error updating preference: $e');
-      rethrow;
-    }
+    if (user == null) throw Exception('No user');
+    await _supabase.from('profiles').update({'dietary_preferences': {'preference': preference}}).eq('id', user.id);
   }
 
-  // =========================================================
-  // NEUE METHODE: USERNAME
-  // =========================================================
-  
-  // 3. Update Username
+  // 3. Username ändern
   Future<void> updateUsername(String newName) async {
     final user = _supabase.auth.currentUser;
-    if (user == null) throw Exception('No user logged in');
+    if (user == null) throw Exception('No user');
+    await _supabase.from('profiles').update({'display_name': newName}).eq('id', user.id);
+  }
+
+  // ---------------------------------------------------------
+  // 4. BILD UPLOAD (UNIVERSAL: HANDY & LAPTOP)
+  // ---------------------------------------------------------
+  // Wir nutzen hier 'XFile' statt 'File', weil das auf allen Geräten funktioniert.
+  Future<String> uploadProfilePicture(XFile image) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) throw Exception('Nicht eingeloggt');
 
     try {
-      print('🔄 Updating display_name to: $newName');
+      // A) Bild-Daten als "Bytes" lesen (funktioniert auf Windows/Mac/Web/Mobile)
+      final Uint8List bytes = await image.readAsBytes();
 
-      // Wir nutzen 'upsert' (Update oder Insert), damit es auch klappt,
-      // wenn der User vorher noch gar keinen Eintrag in der Tabelle hatte.
-      await _supabase.from('profiles').upsert({
-        'id': user.id,
-        'display_name': newName,
-        // Wir aktualisieren nur diese Spalte, aber bei upsert müssen wir aufpassen,
-        // dass wir keine anderen Daten überschreiben, falls es ein Insert ist.
-        // Supabase 'update' ist sicherer, wenn das Profil sicher existiert.
-        // Da wir oben im Code aber schon 'updateDietaryPreference' nutzen, 
-        // gehen wir davon aus, dass ein Profil existiert oder angelegt wird.
-      }, onConflict: 'id'); // onConflict sorgt dafür, dass bei gleicher ID geupdatet wird.
+      // B) Dateiendung holen
+      final fileExt = image.name.split('.').last.toLowerCase();
+      final fileName = '${user.id}/${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      
+      // C) Content-Type bestimmen (gegen Namespace-Fehler)
+      final contentType = fileExt == 'png' ? 'image/png' : 'image/jpeg';
 
-      // Alternativ, wenn du sicher bist, dass das Profil existiert:
-      /*
+      // D) Binär-Upload (uploadBinary statt upload)
+      await _supabase.storage
+          .from('avatars') 
+          .uploadBinary(
+            fileName, 
+            bytes, 
+            fileOptions: FileOptions(
+              upsert: true,
+              contentType: contentType, 
+            ),
+          );
+
+      // E) URL holen
+      final imageUrl = _supabase.storage.from('avatars').getPublicUrl(fileName);
+
+      // F) URL in Datenbank speichern
       await _supabase
           .from('profiles')
-          .update({'username': newName})
+          .update({ 'avatar_url': imageUrl })
           .eq('id', user.id);
-      */
-      
-      print('✅ Username updated successfully');
+
+      return imageUrl; 
     } catch (e) {
-      print('❌ Error updating username: $e');
-      throw Exception('Konnte Benutzernamen nicht speichern: $e');
+      print("Upload Error: $e");
+      throw Exception('Upload fehlgeschlagen: $e');
+    }
+  }
+  // ---------------------------------------------------------
+  // 5. Profilbild löschen
+  // ---------------------------------------------------------
+  Future<void> deleteProfileImage() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) throw Exception('Nicht eingeloggt');
+
+    try {
+      // Wir setzen die URL in der Datenbank einfach auf null
+      await _supabase
+          .from('profiles')
+          .update({ 'avatar_url': null })
+          .eq('id', user.id);
+          
+      // Optional: Du könntest hier auch das File aus dem Storage löschen,
+      // aber das Link-Entfernen reicht für die Optik völlig aus.
+    } catch (e) {
+      throw Exception('Löschen fehlgeschlagen: $e');
     }
   }
 }

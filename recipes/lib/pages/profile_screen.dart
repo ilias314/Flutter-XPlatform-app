@@ -1,9 +1,10 @@
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:recipes/data/auth_repository.dart';
-import 'package:recipes/data/profile_repository.dart'; 
+import 'package:recipes/data/profile_repository.dart';
 import 'package:recipes/widgets/recipe_section.dart';
-import 'package:recipes/widgets/ui_utils.dart';
 
 enum DishPreference { alles, pescetarisch, vegetarisch, vegan }
 
@@ -16,11 +17,12 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   DishPreference _currentPreference = DishPreference.alles;
-  bool _isLoading = true; 
-  bool _isDarkMode = false; 
-  
-  // Lokaler State für den Benutzernamen
-  String _userName = "UserName"; 
+  bool _isLoading = true;
+  bool _isDarkMode = false;
+
+  // State Variablen für User-Daten
+  String _userName = "UserName";
+  String? _avatarUrl;
 
   @override
   void initState() {
@@ -28,21 +30,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _loadUserProfile();
   }
 
-  // --- 1. DATEN LADEN ---
+  // --------------------------------------------------------------------------
+  // 1. DATEN LADEN
+  // --------------------------------------------------------------------------
   Future<void> _loadUserProfile() async {
+    if (ref.read(authRepositoryProvider).currentUser == null) return;
+
     final profileData = await ref.read(profileRepositoryProvider).getProfile();
-    
+
     if (profileData != null) {
-      // -----------------------------------------------------------
-      // KORREKTUR: Hier lesen wir jetzt 'display_name' statt 'username'
-      // -----------------------------------------------------------
-      if (profileData['display_name'] != null) { 
-         setState(() {
-           _userName = profileData['display_name'];
-         });
+      if (profileData['display_name'] != null) {
+        setState(() {
+          _userName = profileData['display_name'];
+        });
       }
 
-      // Präferenzen laden
+      // Hier wird die URL geladen
+      if (profileData['avatar_url'] != null) {
+        setState(() {
+          _avatarUrl = profileData['avatar_url'];
+        });
+        print("✅ DEBUG: Avatar URL aus Datenbank geladen: $_avatarUrl");
+      } else {
+        print("ℹ️ DEBUG: Keine Avatar URL in Datenbank.");
+      }
+
       if (profileData['dietary_preferences'] != null) {
         final json = profileData['dietary_preferences'];
         final String? savedPref = json['preference'];
@@ -62,48 +74,147 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  // --------------------------------------------------------------------------
+  // HELPER (Enum <-> String)
+  // --------------------------------------------------------------------------
   DishPreference _stringToEnum(String value) {
     switch (value) {
-      case 'Pescetarisch': return DishPreference.pescetarisch;
-      case 'Vegetarisch': return DishPreference.vegetarisch;
-      case 'Vegan': return DishPreference.vegan;
-      default: return DishPreference.alles;
+      case 'Pescetarisch':
+        return DishPreference.pescetarisch;
+      case 'Vegetarisch':
+        return DishPreference.vegetarisch;
+      case 'Vegan':
+        return DishPreference.vegan;
+      default:
+        return DishPreference.alles;
     }
   }
 
   String _enumToString(DishPreference pref) {
     switch (pref) {
-      case DishPreference.pescetarisch: return 'Pescetarisch';
-      case DishPreference.vegetarisch: return 'Vegetarisch';
-      case DishPreference.vegan: return 'Vegan';
-      default: return 'Alles';
+      case DishPreference.pescetarisch:
+        return 'Pescetarisch';
+      case DishPreference.vegetarisch:
+        return 'Vegetarisch';
+      case DishPreference.vegan:
+        return 'Vegan';
+      default:
+        return 'Alles';
     }
   }
 
-  // --- 2. DATEN SPEICHERN (PRÄFERENZEN) ---
+  // --------------------------------------------------------------------------
+  // FUNKTION: Ernährungsweise speichern
+  // --------------------------------------------------------------------------
   Future<void> _updatePreference(DishPreference? newValue) async {
     if (newValue == null || newValue == _currentPreference) return;
-    
+
     setState(() {
       _currentPreference = newValue;
     });
-    
+
     try {
       final String stringValue = _enumToString(newValue);
-      await ref.read(profileRepositoryProvider).updateDietaryPreference(stringValue);
-      
+      await ref
+          .read(profileRepositoryProvider)
+          .updateDietaryPreference(stringValue);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ernährungsweise gespeichert'), duration: Duration(seconds: 2)),
+          const SnackBar(
+            content: Text('Ernährungsweise gespeichert'),
+            duration: Duration(seconds: 2),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
+        );
       }
     }
   }
 
+  // --------------------------------------------------------------------------
+  // FUNKTION: Profilbild ändern (Upload)
+  // --------------------------------------------------------------------------
+  Future<void> _changeProfilePicture() async {
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+
+    if (image == null) return;
+
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Bild wird hochgeladen...")));
+    }
+
+    try {
+      final newUrl = await ref
+          .read(profileRepositoryProvider)
+          .uploadProfilePicture(image);
+
+      if (mounted) {
+        setState(() {
+          _avatarUrl = newUrl;
+        });
+        print("✅ DEBUG: Neues Bild hochgeladen: $newUrl");
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Profilbild aktualisiert!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print("❌ DEBUG Upload Fehler: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Upload-Fehler: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // FUNKTION: Profilbild LÖSCHEN
+  // --------------------------------------------------------------------------
+  Future<void> _deleteProfilePicture() async {
+    try {
+      // Löscht den Eintrag in der DB (setzt avatar_url auf null)
+      await ref.read(profileRepositoryProvider).deleteProfileImage();
+
+      if (mounted) {
+        setState(() {
+          _avatarUrl = null; // Bild sofort aus UI entfernen
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Profilbild entfernt"),
+            backgroundColor: Colors.grey,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Fehler beim Löschen: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // HAUPT UI
+  // --------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -118,7 +229,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => _showSettingsSheet(context),
-          )
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -126,47 +237,64 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           children: [
             const SizedBox(height: 30),
 
-            // PROFILBILD
+            // PROFILBILD (Hauptansicht)
             Center(
               child: Stack(
                 alignment: Alignment.bottomRight,
                 children: [
-                  const CircleAvatar(
-                    radius: 60, 
-                    backgroundColor: Colors.grey,
-                    child: Icon(Icons.person, size: 80, color: Colors.white),
+                  CircleAvatar(
+                    radius: 60,
+                    // Hier ist deine Original-Logik: Transparent wenn Bild da ist
+                    backgroundColor: _avatarUrl != null
+                        ? Colors.transparent
+                        : Colors.grey,
+                    backgroundImage: _avatarUrl != null
+                        ? NetworkImage(_avatarUrl!)
+                        : null,
+                    child: _avatarUrl == null
+                        ? const Icon(
+                            Icons.person,
+                            size: 80,
+                            color: Colors.white,
+                          )
+                        : null,
                   ),
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 10),
-            
-            // NAME (Wird nun korrekt angezeigt)
+
+            // NAME
             Text(
-              _userName, 
+              _userName,
               style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w300),
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             // PROFIL BEARBEITEN BUTTON
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 40.0),
               child: SizedBox(
-                height: 48, 
-                width: double.infinity, 
+                height: 48,
+                width: double.infinity,
                 child: OutlinedButton(
                   onPressed: () => _showEditProfileSheet(context),
                   style: OutlinedButton.styleFrom(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
                     side: const BorderSide(color: Colors.grey),
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                   ),
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("Profil bearbeiten", style: TextStyle(color: Colors.black, fontSize: 16)),
+                      Text(
+                        "Profil bearbeiten",
+                        style: TextStyle(color: Colors.black, fontSize: 16),
+                      ),
                       SizedBox(width: 8),
                       Icon(Icons.edit, size: 18, color: Colors.black),
                     ],
@@ -174,10 +302,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 30),
 
-            // ERNÄHRUNGSWEISE DROPDOWN
+            // ERNÄHRUNGSWEISE
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 40.0),
               child: Column(
@@ -185,12 +313,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 children: [
                   const Padding(
                     padding: EdgeInsets.only(left: 10.0, bottom: 8.0),
-                    child: Text('Deine Ernährungsweise:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    child: Text(
+                      'Deine Ernährungsweise:',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
-                  
                   Container(
                     height: 48,
-                    width: double.infinity, 
+                    width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.grey, width: 1),
@@ -201,13 +334,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       child: DropdownButton<DishPreference>(
                         value: _currentPreference,
                         hint: const Text("Bitte wählen"),
-                        isExpanded: true, 
-                        icon: const Icon(Icons.arrow_drop_down_circle_outlined, color: Colors.black),
+                        isExpanded: true,
+                        icon: const Icon(
+                          Icons.arrow_drop_down_circle_outlined,
+                          color: Colors.black,
+                        ),
                         items: const [
-                          DropdownMenuItem(value: DishPreference.alles, child: Text("Alles")),
-                          DropdownMenuItem(value: DishPreference.pescetarisch, child: Text("Pescetarier")),
-                          DropdownMenuItem(value: DishPreference.vegetarisch, child: Text("Vegetarisch")),
-                          DropdownMenuItem(value: DishPreference.vegan, child: Text("Vegan")),
+                          DropdownMenuItem(
+                            value: DishPreference.alles,
+                            child: Text("Alles"),
+                          ),
+                          DropdownMenuItem(
+                            value: DishPreference.pescetarisch,
+                            child: Text("Pescetarier"),
+                          ),
+                          DropdownMenuItem(
+                            value: DishPreference.vegetarisch,
+                            child: Text("Vegetarisch"),
+                          ),
+                          DropdownMenuItem(
+                            value: DishPreference.vegan,
+                            child: Text("Vegan"),
+                          ),
                         ],
                         onChanged: (val) {
                           if (val != null) _updatePreference(val);
@@ -223,7 +371,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             const RecipeSection(title: "Favoriten"),
             const SizedBox(height: 50),
             const RecipeSection(title: "Meine Rezepte"),
-            const SizedBox(height: 40),  
+            const SizedBox(height: 40),
           ],
         ),
       ),
@@ -238,54 +386,123 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
       builder: (context) {
         return ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.9),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.9,
+          ),
           child: Padding(
             padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom, top: 20, left: 20, right: 20
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+              top: 20,
+              left: 20,
+              right: 20,
             ),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(width: 40, height: 8, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(18))),
+                  Container(
+                    width: 40,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
                   const SizedBox(height: 25),
-                  const Text("Profil bearbeiten", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const Text(
+                    "Profil bearbeiten",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 40),
-                  
-                  // 1. PROFILBILD
+
+                  // 1. PROFILBILD MIT CHANGE & DELETE BUTTONS
                   Stack(
                     alignment: Alignment.bottomRight,
                     children: [
-                      const CircleAvatar(
-                        radius: 70, 
-                        backgroundColor: Colors.grey, 
-                        child: Icon(Icons.person, size: 80, color: Colors.white)
+                      CircleAvatar(
+                        radius: 70,
+                        backgroundColor: _avatarUrl != null
+                            ? Colors.transparent
+                            : Colors.grey,
+                        backgroundImage: _avatarUrl != null
+                            ? NetworkImage(_avatarUrl!)
+                            : null,
+                        child: _avatarUrl == null
+                            ? const Icon(
+                                Icons.person,
+                                size: 80,
+                                color: Colors.white,
+                              )
+                            : null,
                       ),
+
+                      // Button: Ändern (Blau, rechts)
                       GestureDetector(
                         onTap: () {
-                          Navigator.pop(context); 
+                          Navigator.pop(context);
                           _changeProfilePicture();
                         },
                         child: Container(
                           padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
-                          child: const Icon(Icons.camera_alt, color: Colors.white, size: 24),
+                          decoration: const BoxDecoration(
+                            color: Colors.blue,
+                            shape: BoxShape.circle,
+                            border: Border.fromBorderSide(
+                              BorderSide(color: Colors.white, width: 2),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt,
+                            color: Colors.white,
+                            size: 24,
+                          ),
                         ),
                       ),
+
+                      // Button: Löschen (Rot, links) - NUR ANZEIGEN WENN BILD DA IST
+                      if (_avatarUrl != null)
+                        Positioned(
+                          left: 0,
+                          bottom: 0,
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.pop(context);
+                              _deleteProfilePicture();
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                                border: Border.fromBorderSide(
+                                  BorderSide(color: Colors.white, width: 2),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 40),
-                  
-                  // 2. BEARBEITUNGS-OPTIONEN
-                  
-                  // A) USERNAME
+
+                  // 2. OPTIONEN
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.person_outline, color: Colors.black), 
-                    title: const Text('Benutzernamen ändern'), 
+                    leading: const Icon(
+                      Icons.person_outline,
+                      color: Colors.black,
+                    ),
+                    title: const Text('Benutzernamen ändern'),
                     onTap: () {
                       Navigator.pop(context);
                       _showChangeUsernameDialog();
@@ -293,11 +510,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   const SizedBox(height: 10),
 
-                  // B) E-MAIL
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.email_outlined, color: Colors.black), 
-                    title: const Text('E-Mail ändern'), 
+                    leading: const Icon(
+                      Icons.email_outlined,
+                      color: Colors.black,
+                    ),
+                    title: const Text('E-Mail ändern'),
                     onTap: () {
                       Navigator.pop(context);
                       _showChangeEmailDialog();
@@ -305,11 +524,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   const SizedBox(height: 10),
 
-                  // C) PASSWORT
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.lock_outline, color: Colors.black), 
-                    title: const Text('Passwort ändern'), 
+                    leading: const Icon(
+                      Icons.lock_outline,
+                      color: Colors.black,
+                    ),
+                    title: const Text('Passwort ändern'),
                     onTap: () {
                       Navigator.pop(context);
                       _showChangePasswordDialog();
@@ -326,22 +547,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   // ===========================================================================
-  // DIALOGE FÜR ÄNDERUNGEN
+  // DIALOGE
   // ===========================================================================
 
-  // --- 1. PROFILBILD LOGIK ---
-  void _changeProfilePicture() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Galerie öffnen...")),
-    );
-  }
-
-  // --- 2. USERNAME DIALOG ---
   void _showChangeUsernameDialog() {
     final TextEditingController nameController = TextEditingController();
-    // Vorbefüllen mit aktuellem Namen
     nameController.text = _userName;
-    
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -351,24 +563,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           decoration: const InputDecoration(labelText: "Neuer Benutzername"),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Abbrechen")),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Abbrechen"),
+          ),
           ElevatedButton(
             onPressed: () async {
-              // Speichern Logik
               if (nameController.text.isNotEmpty) {
                 try {
-                  // WICHTIG: Das Repository sollte jetzt auch 'display_name' speichern
-                  await ref.read(profileRepositoryProvider).updateUsername(nameController.text);
-                  
-                  setState(() {
-                    _userName = nameController.text; // UI Update
-                  });
-                  
+                  await ref
+                      .read(profileRepositoryProvider)
+                      .updateUsername(nameController.text);
+                  setState(() => _userName = nameController.text);
                   if (ctx.mounted) Navigator.pop(ctx);
-                  
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Benutzername geändert"), backgroundColor: Colors.green));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Benutzername geändert"),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
                 } catch (e) {
-                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Fehler: $e"), backgroundColor: Colors.red));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Fehler: $e"),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
                 }
               }
             },
@@ -379,10 +599,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  // --- 3. E-MAIL DIALOG ---
   void _showChangeEmailDialog() {
     final TextEditingController newEmailController = TextEditingController();
-
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -390,26 +608,46 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-             const Text("Hinweis: Du erhältst eine Bestätigungsmail.", style: TextStyle(fontSize: 12, color: Colors.grey)),
-             const SizedBox(height: 10),
+            const Text(
+              "Hinweis: Du erhältst eine Bestätigungsmail.",
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 10),
             TextField(
               controller: newEmailController,
-              decoration: const InputDecoration(labelText: "Neue E-Mail Adresse"),
+              decoration: const InputDecoration(
+                labelText: "Neue E-Mail Adresse",
+              ),
               keyboardType: TextInputType.emailAddress,
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Abbrechen")),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Abbrechen"),
+          ),
           ElevatedButton(
             onPressed: () async {
               if (newEmailController.text.contains('@')) {
                 try {
-                  await ref.read(authRepositoryProvider).updateEmail(newEmailController.text);
+                  await ref
+                      .read(authRepositoryProvider)
+                      .updateEmail(newEmailController.text);
                   if (ctx.mounted) Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Bestätigungsmail gesendet!"), backgroundColor: Colors.blue));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Bestätigungsmail gesendet!"),
+                      backgroundColor: Colors.blue,
+                    ),
+                  );
                 } catch (e) {
-                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Fehler: $e"), backgroundColor: Colors.red));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Fehler: $e"),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
                 }
               }
             },
@@ -420,104 +658,193 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  // --- 4. PASSWORT DIALOG ---
   void _showChangePasswordDialog() {
     final TextEditingController oldPassController = TextEditingController();
     final TextEditingController newPassController = TextEditingController();
     final TextEditingController confirmPassController = TextEditingController();
-    final _formKey = GlobalKey<FormState>(); 
+    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+
+    bool obscureOld = true;
+    bool obscureNew = true;
+    bool obscureConfirm = true;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Passwort ändern"),
-        content: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: oldPassController,
-                  decoration: const InputDecoration(labelText: "Altes Passwort"),
-                  obscureText: true,
-                  validator: (value) => (value == null || value.isEmpty) ? 'Pflichtfeld' : null,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text("Passwort ändern"),
+              content: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: oldPassController,
+                        decoration: InputDecoration(
+                          labelText: "Altes Passwort",
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              obscureOld
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                            onPressed: () =>
+                                setState(() => obscureOld = !obscureOld),
+                          ),
+                        ),
+                        obscureText: obscureOld,
+                        validator: (value) => (value == null || value.isEmpty)
+                            ? 'Bitte altes Passwort eingeben'
+                            : null,
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: newPassController,
+                        decoration: InputDecoration(
+                          labelText: "Neues Passwort",
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              obscureNew
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                            onPressed: () =>
+                                setState(() => obscureNew = !obscureNew),
+                          ),
+                        ),
+                        obscureText: obscureNew,
+                        validator: (value) {
+                          if (value == null || value.isEmpty)
+                            return 'Pflichtfeld';
+                          if (value.length < 6) return 'Mindestens 6 Zeichen';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: confirmPassController,
+                        decoration: InputDecoration(
+                          labelText: "Wiederholen",
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              obscureConfirm
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                            onPressed: () => setState(
+                              () => obscureConfirm = !obscureConfirm,
+                            ),
+                          ),
+                        ),
+                        obscureText: obscureConfirm,
+                        validator: (value) {
+                          if (value != newPassController.text)
+                            return 'Stimmt nicht überein';
+                          return null;
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: newPassController,
-                  decoration: const InputDecoration(labelText: "Neues Passwort"),
-                  obscureText: true,
-                  validator: (value) => (value == null || value.length < 6) ? 'Mind. 6 Zeichen' : null,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("Abbrechen"),
                 ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: confirmPassController,
-                  decoration: const InputDecoration(labelText: "Wiederholen"),
-                  obscureText: true,
-                  validator: (value) => (value != newPassController.text) ? 'Stimmt nicht überein' : null,
+                ElevatedButton(
+                  onPressed: () async {
+                    if (formKey.currentState!.validate()) {
+                      try {
+                        await ref
+                            .read(authRepositoryProvider)
+                            .reauthenticate(oldPassController.text);
+                        await ref
+                            .read(authRepositoryProvider)
+                            .updatePassword(newPassController.text);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("Passwort erfolgreich geändert"),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text("Fehler: $e"),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text("Speichern"),
                 ),
               ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Abbrechen")),
-          ElevatedButton(
-            onPressed: () async {
-              if (_formKey.currentState!.validate()) {
-                try {
-                  await ref.read(authRepositoryProvider).reauthenticate(oldPassController.text);
-                  await ref.read(authRepositoryProvider).updatePassword(newPassController.text);
-                  if (ctx.mounted) Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Passwort erfolgreich geändert"), backgroundColor: Colors.green));
-                } catch (e) {
-                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Fehler: $e"), backgroundColor: Colors.red));
-                }
-              }
-            },
-            child: const Text("Speichern"),
-          ),
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
-
-  // ===========================================================================
-  // MODAL SHEET: EINSTELLUNGEN
-  // ===========================================================================
   void _showSettingsSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) {
         return ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.9),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.9,
+          ),
           child: Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+            ),
             child: StatefulBuilder(
               builder: (BuildContext context, StateSetter setSheetState) {
                 return SingleChildScrollView(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 20,
+                      horizontal: 10,
+                    ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
+                        Container(
+                          width: 40,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
                         const SizedBox(height: 20),
-                        
-                        const Text("Einstellungen", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                        const Text(
+                          "Einstellungen",
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         const SizedBox(height: 20),
-
                         SwitchListTile(
-                          secondary: Icon((_isDarkMode) ? Icons.dark_mode : Icons.light_mode),
+                          secondary: Icon(
+                            (_isDarkMode) ? Icons.dark_mode : Icons.light_mode,
+                          ),
                           title: const Text("Dark Mode"),
                           value: _isDarkMode,
                           onChanged: (bool value) {
-                            setSheetState(() { _isDarkMode = value; });
+                            setSheetState(() => _isDarkMode = value);
                           },
                         ),
                         const Divider(),
@@ -531,11 +858,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ),
                         const Divider(),
                         ListTile(
-                          leading: const Icon(Icons.delete_forever, color: Colors.red),
-                          title: const Text("Profil löschen", style: TextStyle(color: Colors.red)),
+                          leading: const Icon(
+                            Icons.delete_forever,
+                            color: Colors.red,
+                          ),
+                          title: const Text(
+                            "Profil löschen",
+                            style: TextStyle(color: Colors.red),
+                          ),
                           onTap: () {
                             Navigator.pop(context);
-                            _showDeleteConfirmationDialog(); 
+                            _showDeleteConfirmationDialog();
                           },
                         ),
                         const SizedBox(height: 30),
@@ -543,16 +876,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                   ),
                 );
-              }
+              },
             ),
           ),
         );
       },
     );
   }
-  // --------------------------------------------------------------------------
-  // SICHERHEITS-DIALOG ZUM LÖSCHEN
-  // --------------------------------------------------------------------------
+
   void _showDeleteConfirmationDialog() {
     showDialog(
       context: context,
@@ -562,40 +893,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           "Diese Aktion kann nicht rückgängig gemacht werden. Alle deine Daten und Rezepte werden dauerhaft gelöscht.",
         ),
         actions: [
-          // Abbrechen Button
           TextButton(
-            onPressed: () => Navigator.pop(ctx), 
+            onPressed: () => Navigator.pop(ctx),
             child: const Text("Abbrechen"),
           ),
-          
-          // Löschen Button (Rot)
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
-              Navigator.pop(ctx); // Dialog schließen
-              
+              Navigator.pop(ctx);
               try {
-                // Ladekreis anzeigen, damit User sieht, dass was passiert
+                if (!mounted) return;
                 setState(() => _isLoading = true);
-
-                // REPOSITORY AUFRUFEN (das ruft die SQL-Funktion auf)
                 await ref.read(authRepositoryProvider).deleteAccount();
-                
-                // Hinweis: Nach erfolgreichem Löschen loggt Supabase den User aus.
-                // Dein Router (in router.dart) sollte das merken und automatisch 
-                // zum Login-Screen wechseln.
-                
               } catch (e) {
-                // Falls was schiefgeht, Loading beenden und Fehler zeigen
                 if (mounted) {
                   setState(() => _isLoading = false);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Fehler: $e"), backgroundColor: Colors.red),
+                    SnackBar(
+                      content: Text("Fehler: $e"),
+                      backgroundColor: Colors.red,
+                    ),
                   );
                 }
               }
             },
-            child: const Text("Endgültig löschen", style: TextStyle(color: Colors.white)),
+            child: const Text(
+              "Endgültig löschen",
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),

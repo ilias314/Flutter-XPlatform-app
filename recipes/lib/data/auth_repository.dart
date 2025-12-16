@@ -61,9 +61,6 @@ class AuthRepository {
     await _supabase.auth.signOut();
   }
 
-  // =========================================================
-  // FEHLENDE METHODEN (Die haben den Fehler verursacht!)
-  // =========================================================
 
   // 1. E-Mail ändern
   Future<void> updateEmail(String newEmail) async {

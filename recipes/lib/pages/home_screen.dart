@@ -97,7 +97,7 @@ class _StartseitePagesState extends State<StartseitePages> {
               title: const Text('Meine Rezepte'),
               onTap: () {
                 Navigator.pop(context);
-                // context.go('/my-recipes'); // TODO: Route einfügen
+                context.push('/my-recipes');
                 print("Navigiere zu Meine Rezepte");
               },
             ),

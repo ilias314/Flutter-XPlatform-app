@@ -10,6 +10,7 @@ import 'pages/register_screen.dart';
 import 'pages/search_screen.dart';
 import 'pages/recipe_detail_screen.dart'; 
 import 'pages/favorite_list_screen.dart';
+import 'pages/my_recipes_list_screen.dart';
 
 
 final router = GoRouter(
@@ -57,6 +58,14 @@ final router = GoRouter(
       path: '/favorites',  // Darauf wartet dein Burger-Menü
       builder: (context, state) => const FavoriteListScreen(),
     ),
+
+    //7. myRecipes Liste
+    GoRoute(
+      path: '/my-recipes', // Der Pfad für "Meine Rezepte"
+      builder: (context, state) => const MyRecipesListScreen(),
+    ),
+
+
   ],
 
   redirect: (context, state) {

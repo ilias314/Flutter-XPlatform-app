@@ -8,6 +8,8 @@ class Recipe {
   final double protein;
   final double carbs;
   final double fat;
+  final double fiber;
+  final double sugar;
   final int portions;
   final String description;
   final double avgRating; 
@@ -26,6 +28,8 @@ class Recipe {
     required this.protein,
     required this.carbs,
     required this.fat,
+    required this.fiber,
+    required this.sugar,
     required this.portions,
     required this.description,
     this.avgRating = 0.0,
@@ -63,6 +67,8 @@ class Recipe {
       protein: (json['protein_per_portion'] ?? 0).toDouble(),
       carbs: (json['carbs_per_portion'] ?? 0).toDouble(),
       fat: (json['fat_per_portion'] ?? 0).toDouble(),
+      fiber: (json['fiber_per_portion'] ?? 0).toDouble(),
+      sugar: (json['sugar_per_portion'] ?? 0).toDouble(),
       portions: json['portions'] ?? 1,
       description: json['description'] ?? '',
       avgRating: (json['avg_rating'] ?? 0).toDouble(),

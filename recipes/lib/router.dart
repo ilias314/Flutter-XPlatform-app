@@ -3,9 +3,13 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async'; // Required for the stream listener
 
-// 1. Correct Imports based on your new structure
 import 'main_scaffold.dart'; 
-import 'pages/login_screen.dart'; 
+import 'pages/login_screen.dart';
+import 'pages/search_screen.dart';
+import 'pages/recipe_detail_screen.dart'; 
+import 'pages/favorite_list_screen.dart';
+import 'pages/my_recipes_list_screen.dart';
+ 
 
 final router = GoRouter(
   initialLocation: '/',
@@ -24,7 +28,36 @@ final router = GoRouter(
       // Wir nutzen jetzt hier deinen neuen Screen, der beides kann (Login + Popup Register)
       builder: (context, state) => const LoginScreen(), 
     ),
-    // Die Route '/signup' wurde gelöscht, da sie jetzt ein Pop-up ist.
+    // 4. SEARCH
+    GoRoute(
+      path: '/search',
+      builder: (context, state) => const SearchScreen(),
+    ),
+
+    // 5. RECIPE DETAIL (The Missing Route)
+    GoRoute(
+      path: '/recipes/:id',
+      builder: (context, state) {
+        // We extract the ID from the URL (e.g. "c5b9...")
+        final id = state.pathParameters['id'];
+        // Pass the ID to the screen
+        return RecipeDetailScreen(recipeId: id!);
+      },
+    ),
+
+    //6. Favorite Liste
+    GoRoute(
+      path: '/favorites',  // Darauf wartet dein Burger-Menü
+      builder: (context, state) => const FavoriteListScreen(),
+    ),
+
+    //7. myRecipes Liste
+    GoRoute(
+      path: '/my-recipes', // Der Pfad für "Meine Rezepte"
+      builder: (context, state) => const MyRecipesListScreen(),
+    ),
+
+
   ],
 
   // THE GUARD: Protects private pages

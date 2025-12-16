@@ -46,10 +46,6 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // ---------------------------------------------------------
-      // 1. APP BAR (Ohne manuelles leading Icon!)
-      // Flutter fügt das Burger-Icon automatisch hinzu, weil wir unten einen 'drawer' haben.
-      // ---------------------------------------------------------
       appBar: AppBar(
         title: const Text('RecipeS'),
         titleTextStyle: const TextStyle(
@@ -72,17 +68,13 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
         ],
       ),
 
-      // ---------------------------------------------------------
-      // 2. DRAWER (Das Menü, das von der Seite kommt)
-      // ---------------------------------------------------------
       drawer: Drawer(
         child: ListView(
-          padding: EdgeInsets.zero, // Wichtig, damit es auch hinter die Statusleiste geht
+          padding: EdgeInsets.zero,
           children: [
-            // Der Kopfbereich des Menüs
             const DrawerHeader(
               decoration: BoxDecoration(
-                color: Colors.orange, // Deine App-Farbe
+                color: Colors.orange,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -102,18 +94,15 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
               ),
             ),
             
-            // Eintrag 1: Favoriten
             ListTile(
               title: const Text('Favoriten'),
               onTap: () {
-                // Erst den Drawer schließen, dann navigieren
                 Navigator.pop(context); 
                 context.push('/favorites');
                 print("Navigiere zu Favoriten");
               },
             ),
 
-            // Eintrag 2: Meine Rezepte
             ListTile(
               title: const Text('Meine Rezepte'),
               onTap: () {
@@ -126,9 +115,6 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
         ),
       ),
 
-      // ---------------------------------------------------------
-      // 3. BODY (Der Inhalt der Seite)
-      // ---------------------------------------------------------
       body: FutureBuilder<List<Recipe>>(
         future: _recipesFuture,
         builder: (context, snapshot) {
@@ -150,25 +136,41 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
           // 1. NEUESTE REZEPTE (Top 10 Newest)
           // ============================================================
           final newestRecipes = List<Recipe>.from(allRecipes);
-          // Sort: Newest date first
           newestRecipes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           final newestSection = newestRecipes.take(10).toList();
 
-
           // ============================================================
-          // 2. FÜR DICH AUSGEWÄHLT (Based on Database Preference)
+          // 2. FÜR DICH AUSGEWÄHLT (Based on User Dietary Preference)
           // ============================================================
           List<Recipe> dietRecipes;
-          if (_userDietaryPreference == "Alles") {
-             dietRecipes = List.from(allRecipes);
-          } else {
-             // Filter matches (case-insensitive check is safer)
-             dietRecipes = allRecipes.where((r) => 
-                r.category.toLowerCase() == _userDietaryPreference.toLowerCase()
-             ).toList();
-          }
-          final dietSection = dietRecipes.take(10).toList();
 
+          if (_userDietaryPreference == "Alles") {
+            // Show all recipes sorted by rating
+            dietRecipes = List.from(allRecipes);
+            dietRecipes.sort((a, b) => b.avgRating.compareTo(a.avgRating));
+          } else {
+            // Filter by category - check if recipe has the matching category
+            dietRecipes = allRecipes.where((recipe) {
+              // Check if any of the recipe's categories match the user preference
+              bool hasMatch = recipe.categories.any((cat) => 
+                cat.toLowerCase() == _userDietaryPreference.toLowerCase()
+              );
+              
+              if (hasMatch) {
+                print('✅ Recipe "${recipe.name}" matches $_userDietaryPreference (categories: ${recipe.categories})');
+              }
+              
+              return hasMatch;
+            }).toList();
+            
+            // Sort by rating
+            dietRecipes.sort((a, b) => b.avgRating.compareTo(a.avgRating));
+          }
+
+          print('🍽️ User preference: $_userDietaryPreference');
+          print('📊 Total recipes: ${allRecipes.length}');
+          print('📊 Matching recipes: ${dietRecipes.length}');
+          final dietSection = dietRecipes.take(10).toList();
 
           // ============================================================
           // 3. TOP DER WOCHE (Created this week, sorted by Rating)
@@ -184,7 +186,6 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
           weekRecipes.sort((a, b) => b.avgRating.compareTo(a.avgRating));
           final topWeekSection = weekRecipes.take(10).toList();
 
-
           // ============================================================
           // 4. TOP DES MONATS (Created this month, sorted by Rating)
           // ============================================================
@@ -198,7 +199,6 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
           monthRecipes.sort((a, b) => b.avgRating.compareTo(a.avgRating));
           final topMonthSection = monthRecipes.take(10).toList();
 
-
           return SingleChildScrollView(
             child: Column(
               children: <Widget>[
@@ -209,9 +209,38 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
                 
                 const SizedBox(height: 10),
 
-                // 2. FÜR DICH (DIET)
+                // 2. FÜR DICH (DIET) - Show message if no matches
                 if (dietSection.isNotEmpty)
-                  _buildRealRecipeSection(context, 'Für dich ausgewählt ($_userDietaryPreference)', dietSection),
+                  _buildRealRecipeSection(
+                    context, 
+                    'Für dich ausgewählt${_userDietaryPreference != "Alles" ? " ($_userDietaryPreference)" : ""}', 
+                    dietSection
+                  )
+                else if (_userDietaryPreference != "Alles")
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          children: [
+                            Icon(Icons.info_outline, size: 48, color: Colors.grey[600]),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Keine $_userDietaryPreference Rezepte gefunden',
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Erstelle Rezepte mit der Kategorie "$_userDietaryPreference" oder ändere deine Präferenz!',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 
                 const SizedBox(height: 10),
 

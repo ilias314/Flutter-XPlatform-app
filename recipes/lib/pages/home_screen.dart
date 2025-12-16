@@ -1,25 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:recipes/data/recipe_repository.dart'; 
 import 'package:recipes/models/recipe.dart'; 
-import 'package:recipes/widgets/recipe_card.dart';
+import 'package:recipes/widgets/recipe_card.dart'; 
+import 'package:recipes/data/profile_repository.dart'; 
 
-class StartseitePages extends StatefulWidget {
+class StartseitePages extends ConsumerStatefulWidget {
   const StartseitePages({super.key});
 
   @override
-  State<StartseitePages> createState() => _StartseitePagesState();
+  ConsumerState<StartseitePages> createState() => _StartseitePagesState();
 }
 
-class _StartseitePagesState extends State<StartseitePages> {
+class _StartseitePagesState extends ConsumerState<StartseitePages> {
   late Future<List<Recipe>> _recipesFuture;
+  
+  // Default preference until loaded from DB
+  String _userDietaryPreference = "Alles"; 
 
   @override
   void initState() {
     super.initState();
     final repo = RecipeRepository(Supabase.instance.client);
     _recipesFuture = repo.getRecipes();
+    _loadUserPreference();
+  }
+
+  // Load the saved preference from Supabase
+  Future<void> _loadUserPreference() async {
+    final profile = await ref.read(profileRepositoryProvider).getProfile();
+    if (profile != null && profile['dietary_preferences'] != null) {
+      final json = profile['dietary_preferences'];
+      if (json['preference'] != null) {
+        if (mounted) {
+          setState(() {
+            _userDietaryPreference = json['preference'];
+          });
+        }
+      }
+    }
   }
 
   @override
@@ -125,23 +146,85 @@ class _StartseitePagesState extends State<StartseitePages> {
             return const Center(child: Text('Noch keine Rezepte vorhanden.'));
           }
 
-          // Data Preparation...
-          final newestRecipes = List<Recipe>.from(allRecipes); 
-          final dietRecipes = allRecipes.take(5).toList();
-          final topWeekRecipes = allRecipes.take(3).toList(); 
-          final topMonthRecipes = allRecipes.skip(3).take(3).toList();
+          // ============================================================
+          // 1. NEUESTE REZEPTE (Top 10 Newest)
+          // ============================================================
+          final newestRecipes = List<Recipe>.from(allRecipes);
+          // Sort: Newest date first
+          newestRecipes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          final newestSection = newestRecipes.take(10).toList();
+
+
+          // ============================================================
+          // 2. FÜR DICH AUSGEWÄHLT (Based on Database Preference)
+          // ============================================================
+          List<Recipe> dietRecipes;
+          if (_userDietaryPreference == "Alles") {
+             dietRecipes = List.from(allRecipes);
+          } else {
+             // Filter matches (case-insensitive check is safer)
+             dietRecipes = allRecipes.where((r) => 
+                r.category.toLowerCase() == _userDietaryPreference.toLowerCase()
+             ).toList();
+          }
+          final dietSection = dietRecipes.take(10).toList();
+
+
+          // ============================================================
+          // 3. TOP DER WOCHE (Created this week, sorted by Rating)
+          // ============================================================
+          final now = DateTime.now();
+          final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+          final endOfWeek = startOfWeek.add(const Duration(days: 7));
+
+          final weekRecipes = allRecipes.where((r) {
+            return r.createdAt.isAfter(startOfWeek) && r.createdAt.isBefore(endOfWeek);
+          }).toList();
+          
+          weekRecipes.sort((a, b) => b.avgRating.compareTo(a.avgRating));
+          final topWeekSection = weekRecipes.take(10).toList();
+
+
+          // ============================================================
+          // 4. TOP DES MONATS (Created this month, sorted by Rating)
+          // ============================================================
+          final startOfMonth = DateTime(now.year, now.month, 1);
+          final endOfMonth = DateTime(now.year, now.month + 1, 0);
+
+          final monthRecipes = allRecipes.where((r) {
+            return r.createdAt.isAfter(startOfMonth) && r.createdAt.isBefore(endOfMonth);
+          }).toList();
+
+          monthRecipes.sort((a, b) => b.avgRating.compareTo(a.avgRating));
+          final topMonthSection = monthRecipes.take(10).toList();
+
 
           return SingleChildScrollView(
             child: Column(
               children: <Widget>[
                 const SizedBox(height: 20),
-                _buildRealRecipeSection(context, 'Für dich ausgewählt', dietRecipes),
+                
+                // 1. NEUESTE
+                _buildRealRecipeSection(context, 'Neueste Rezepte', newestSection),
+                
                 const SizedBox(height: 10),
-                _buildRealRecipeSection(context, 'Neueste Rezepte', newestRecipes),
+
+                // 2. FÜR DICH (DIET)
+                if (dietSection.isNotEmpty)
+                  _buildRealRecipeSection(context, 'Für dich ausgewählt ($_userDietaryPreference)', dietSection),
+                
                 const SizedBox(height: 10),
-                _buildRealRecipeSection(context, 'Top der Woche', topWeekRecipes),
+
+                // 3. TOP WOCHE
+                if (topWeekSection.isNotEmpty)
+                  _buildRealRecipeSection(context, 'Top der Woche', topWeekSection),
+
                 const SizedBox(height: 10),
-                _buildRealRecipeSection(context, 'Top des Monats', topMonthRecipes),
+
+                // 4. TOP MONAT
+                if (topMonthSection.isNotEmpty)
+                  _buildRealRecipeSection(context, 'Top des Monats', topMonthSection),
+                
                 const SizedBox(height: 40),
               ],
             ),
@@ -170,7 +253,9 @@ class _StartseitePagesState extends State<StartseitePages> {
                     ),
               ),
               TextButton(
-                onPressed: () {},
+                onPressed: () {
+                  // TODO: Navigate to "See All"
+                },
                 child: const Text('Alle'),
               ),
             ],

@@ -18,6 +18,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   DishPreference _currentPreference = DishPreference.alles;
   bool _isLoading = true; 
   bool _isDarkMode = false; 
+  
+  // Lokaler State für den Benutzernamen
+  String _userName = "UserName"; 
 
   @override
   void initState() {
@@ -25,19 +28,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _loadUserProfile();
   }
 
-  // --- 1. LOAD DATA FROM SUPABASE ---
+  // --- 1. DATEN LADEN ---
   Future<void> _loadUserProfile() async {
     final profileData = await ref.read(profileRepositoryProvider).getProfile();
     
-    if (profileData != null && profileData['dietary_preferences'] != null) {
-      final json = profileData['dietary_preferences'];
-      final String? savedPref = json['preference'];
+    if (profileData != null) {
+      // -----------------------------------------------------------
+      // KORREKTUR: Hier lesen wir jetzt 'display_name' statt 'username'
+      // -----------------------------------------------------------
+      if (profileData['display_name'] != null) { 
+         setState(() {
+           _userName = profileData['display_name'];
+         });
+      }
 
-      if (savedPref != null) {
-        if (mounted) {
-          setState(() {
-            _currentPreference = _stringToEnum(savedPref);
-          });
+      // Präferenzen laden
+      if (profileData['dietary_preferences'] != null) {
+        final json = profileData['dietary_preferences'];
+        final String? savedPref = json['preference'];
+        if (savedPref != null) {
+          if (mounted) {
+            setState(() {
+              _currentPreference = _stringToEnum(savedPref);
+            });
+          }
         }
       }
     }
@@ -66,47 +80,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
-  // --- 2. SAVE DATA TO SUPABASE ---
+  // --- 2. DATEN SPEICHERN (PRÄFERENZEN) ---
   Future<void> _updatePreference(DishPreference? newValue) async {
-  if (newValue == null || newValue == _currentPreference) return;
-  
-  // Update UI immediately for better UX
-  setState(() {
-    _currentPreference = newValue;
-  });
-  
-  try {
-    final String stringValue = _enumToString(newValue);
-    print('🔄 Saving preference: $stringValue');
+    if (newValue == null || newValue == _currentPreference) return;
     
-    // Save to Supabase in background
-    await ref.read(profileRepositoryProvider).updateDietaryPreference(stringValue);
+    setState(() {
+      _currentPreference = newValue;
+    });
     
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ernährungsweise gespeichert'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-    }
-  } catch (e) {
-    print('❌ Error saving preference: $e');
-    
-    if (mounted) {
-      // Show error and revert UI
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Fehler beim Speichern: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    try {
+      final String stringValue = _enumToString(newValue);
+      await ref.read(profileRepositoryProvider).updateDietaryPreference(stringValue);
       
-      // Reload from database to get correct state
-      await _loadUserProfile();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ernährungsweise gespeichert'), duration: Duration(seconds: 2)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+      }
     }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -121,9 +117,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () {
-              _showSettingsSheet(context);
-            },
+            onPressed: () => _showSettingsSheet(context),
           )
         ],
       ),
@@ -142,32 +136,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     backgroundColor: Colors.grey,
                     child: Icon(Icons.person, size: 80, color: Colors.white),
                   ),
-                  
-                  // Optional: Kleiner Edit-Button direkt am Bild
-                  /*Container(
-                    height: 35,
-                    width: 35,
-                    decoration: BoxDecoration(
-                      color: Colors.blue,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
-                      onPressed: () => _showEditProfileSheet(context),
-                    ),
-                  ),*/
                 ],
               ),
             ),
             
             const SizedBox(height: 10),
             
-            // NAME
-            const Text(
-              "UserName", 
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w300),
+            // NAME (Wird nun korrekt angezeigt)
+            Text(
+              _userName, 
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w300),
             ),
             
             const SizedBox(height: 20),
@@ -207,10 +185,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 children: [
                   const Padding(
                     padding: EdgeInsets.only(left: 10.0, bottom: 8.0),
-                    child: Text(
-                      'Deine Ernährungsweise:',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
+                    child: Text('Deine Ernährungsweise:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                   
                   Container(
@@ -225,61 +200,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<DishPreference>(
                         value: _currentPreference,
-                        hint: const Row(
-                          children: [
-                            Icon(Icons.touch_app_outlined, color: Colors.grey, size: 20),
-                            SizedBox(width: 10),
-                            Text("Bitte wählen"),
-                          ],
-                        ),
+                        hint: const Text("Bitte wählen"),
                         isExpanded: true, 
                         icon: const Icon(Icons.arrow_drop_down_circle_outlined, color: Colors.black),
                         items: const [
-                          DropdownMenuItem(
-                            value: DishPreference.alles,
-                            child: Row(
-                              children: [
-                                Icon(Icons.restaurant, size: 20), 
-                                SizedBox(width: 10), 
-                                Text("Alles") 
-                              ],
-                            ),
-                          ),
-                          DropdownMenuItem(
-                            value: DishPreference.pescetarisch,
-                            child: Row(
-                              children: [
-                                Icon(Icons.set_meal, size: 20), 
-                                SizedBox(width: 10), 
-                                Text("Pescetarier")
-                              ],
-                            ),
-                          ),
-                          DropdownMenuItem(
-                            value: DishPreference.vegetarisch,
-                            child: Row(
-                              children: [
-                                Icon(Icons.grass, size: 20), 
-                                SizedBox(width: 10), 
-                                Text("Vegetarisch")
-                              ],
-                            ),
-                          ),
-                          DropdownMenuItem(
-                            value: DishPreference.vegan,
-                            child: Row(
-                              children: [
-                                Icon(Icons.eco, size: 20), 
-                                SizedBox(width: 10), 
-                                Text("Vegan")
-                              ],
-                            ),
-                          ),
+                          DropdownMenuItem(value: DishPreference.alles, child: Text("Alles")),
+                          DropdownMenuItem(value: DishPreference.pescetarisch, child: Text("Pescetarier")),
+                          DropdownMenuItem(value: DishPreference.vegetarisch, child: Text("Vegetarisch")),
+                          DropdownMenuItem(value: DishPreference.vegan, child: Text("Vegan")),
                         ],
-                          onChanged: (DishPreference? newValue) {
-                          if (newValue != null) {
-                            _updatePreference(newValue);
-                          }
+                        onChanged: (val) {
+                          if (val != null) _updatePreference(val);
                         },
                       ),
                     ),
@@ -289,7 +220,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
 
             const SizedBox(height: 50),
-
             const RecipeSection(title: "Favoriten"),
             const SizedBox(height: 50),
             const RecipeSection(title: "Meine Rezepte"),
@@ -300,115 +230,375 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  // ---------------------------------------------------
-  // FUNKTION 1: PROFIL BEARBEITEN
-  // ---------------------------------------------------
+  // ===========================================================================
+  // MODAL SHEET: PROFIL BEARBEITEN
+  // ===========================================================================
   void _showEditProfileSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
       builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom, top: 20, left: 20, right: 20
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 40, height: 8, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(18))),
-              const SizedBox(height: 25),
-              const Text("Profil bearbeiten", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 30),
-              Stack(
-                alignment: Alignment.bottomRight,
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.9),
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom, top: 20, left: 20, right: 20
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const CircleAvatar(radius: 50, backgroundColor: Colors.grey, child: Icon(Icons.person, size: 60, color: Colors.white)),
-                  Container(
-                    decoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
-                    child: IconButton(icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20), onPressed: () => showNotImplementedSnackbar(context)),
+                  Container(width: 40, height: 8, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(18))),
+                  const SizedBox(height: 25),
+                  const Text("Profil bearbeiten", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 40),
+                  
+                  // 1. PROFILBILD
+                  Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      const CircleAvatar(
+                        radius: 70, 
+                        backgroundColor: Colors.grey, 
+                        child: Icon(Icons.person, size: 80, color: Colors.white)
+                      ),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.pop(context); 
+                          _changeProfilePicture();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
+                          child: const Icon(Icons.camera_alt, color: Colors.white, size: 24),
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 40),
+                  
+                  // 2. BEARBEITUNGS-OPTIONEN
+                  
+                  // A) USERNAME
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.person_outline, color: Colors.black), 
+                    title: const Text('Benutzernamen ändern'), 
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showChangeUsernameDialog();
+                    },
+                  ),
+                  const SizedBox(height: 10),
+
+                  // B) E-MAIL
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.email_outlined, color: Colors.black), 
+                    title: const Text('E-Mail ändern'), 
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showChangeEmailDialog();
+                    },
+                  ),
+                  const SizedBox(height: 10),
+
+                  // C) PASSWORT
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.lock_outline, color: Colors.black), 
+                    title: const Text('Passwort ändern'), 
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showChangePasswordDialog();
+                    },
+                  ),
+                  const SizedBox(height: 50),
                 ],
               ),
-              const SizedBox(height: 30),
-              ListTile(
-                leading: const Icon(Icons.email_outlined), title: const Text('E-Mail ändern'), onTap: () => showNotImplementedSnackbar(context),
-              ),
-              ListTile(
-                leading: const Icon(Icons.lock_outline), title: const Text('Passwort ändern'), onTap: () => showNotImplementedSnackbar(context),
-              ),
-              const SizedBox(height: 40),
-            ],
+            ),
           ),
         );
       },
     );
   }
 
-  // ---------------------------------------------------
-  // FUNKTION 2: EINSTELLUNGEN
-  // ---------------------------------------------------
+  // ===========================================================================
+  // DIALOGE FÜR ÄNDERUNGEN
+  // ===========================================================================
+
+  // --- 1. PROFILBILD LOGIK ---
+  void _changeProfilePicture() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Galerie öffnen...")),
+    );
+  }
+
+  // --- 2. USERNAME DIALOG ---
+  void _showChangeUsernameDialog() {
+    final TextEditingController nameController = TextEditingController();
+    // Vorbefüllen mit aktuellem Namen
+    nameController.text = _userName;
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Benutzernamen ändern"),
+        content: TextField(
+          controller: nameController,
+          decoration: const InputDecoration(labelText: "Neuer Benutzername"),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Abbrechen")),
+          ElevatedButton(
+            onPressed: () async {
+              // Speichern Logik
+              if (nameController.text.isNotEmpty) {
+                try {
+                  // WICHTIG: Das Repository sollte jetzt auch 'display_name' speichern
+                  await ref.read(profileRepositoryProvider).updateUsername(nameController.text);
+                  
+                  setState(() {
+                    _userName = nameController.text; // UI Update
+                  });
+                  
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Benutzername geändert"), backgroundColor: Colors.green));
+                } catch (e) {
+                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Fehler: $e"), backgroundColor: Colors.red));
+                }
+              }
+            },
+            child: const Text("Speichern"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- 3. E-MAIL DIALOG ---
+  void _showChangeEmailDialog() {
+    final TextEditingController newEmailController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("E-Mail ändern"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+             const Text("Hinweis: Du erhältst eine Bestätigungsmail.", style: TextStyle(fontSize: 12, color: Colors.grey)),
+             const SizedBox(height: 10),
+            TextField(
+              controller: newEmailController,
+              decoration: const InputDecoration(labelText: "Neue E-Mail Adresse"),
+              keyboardType: TextInputType.emailAddress,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Abbrechen")),
+          ElevatedButton(
+            onPressed: () async {
+              if (newEmailController.text.contains('@')) {
+                try {
+                  await ref.read(authRepositoryProvider).updateEmail(newEmailController.text);
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Bestätigungsmail gesendet!"), backgroundColor: Colors.blue));
+                } catch (e) {
+                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Fehler: $e"), backgroundColor: Colors.red));
+                }
+              }
+            },
+            child: const Text("Ändern"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- 4. PASSWORT DIALOG ---
+  void _showChangePasswordDialog() {
+    final TextEditingController oldPassController = TextEditingController();
+    final TextEditingController newPassController = TextEditingController();
+    final TextEditingController confirmPassController = TextEditingController();
+    final _formKey = GlobalKey<FormState>(); 
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Passwort ändern"),
+        content: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: oldPassController,
+                  decoration: const InputDecoration(labelText: "Altes Passwort"),
+                  obscureText: true,
+                  validator: (value) => (value == null || value.isEmpty) ? 'Pflichtfeld' : null,
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: newPassController,
+                  decoration: const InputDecoration(labelText: "Neues Passwort"),
+                  obscureText: true,
+                  validator: (value) => (value == null || value.length < 6) ? 'Mind. 6 Zeichen' : null,
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: confirmPassController,
+                  decoration: const InputDecoration(labelText: "Wiederholen"),
+                  obscureText: true,
+                  validator: (value) => (value != newPassController.text) ? 'Stimmt nicht überein' : null,
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Abbrechen")),
+          ElevatedButton(
+            onPressed: () async {
+              if (_formKey.currentState!.validate()) {
+                try {
+                  await ref.read(authRepositoryProvider).reauthenticate(oldPassController.text);
+                  await ref.read(authRepositoryProvider).updatePassword(newPassController.text);
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Passwort erfolgreich geändert"), backgroundColor: Colors.green));
+                } catch (e) {
+                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Fehler: $e"), backgroundColor: Colors.red));
+                }
+              }
+            },
+            child: const Text("Speichern"),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  // ===========================================================================
+  // MODAL SHEET: EINSTELLUNGEN
+  // ===========================================================================
   void _showSettingsSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setSheetState) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
-                  const SizedBox(height: 20),
-                  
-                  const Text("Einstellungen", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 20),
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.9),
+          child: Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            child: StatefulBuilder(
+              builder: (BuildContext context, StateSetter setSheetState) {
+                return SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
+                        const SizedBox(height: 20),
+                        
+                        const Text("Einstellungen", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 20),
 
-                  // 1. Dark Mode Switch
-                  SwitchListTile(
-                    secondary: Icon((_isDarkMode) ? Icons.dark_mode : Icons.light_mode),
-                    title: const Text("Dark Mode"),
-                    value: _isDarkMode,
-                    onChanged: (bool value) {
-                      setSheetState(() {
-                        _isDarkMode = value;
-                      });
-                    },
+                        SwitchListTile(
+                          secondary: Icon((_isDarkMode) ? Icons.dark_mode : Icons.light_mode),
+                          title: const Text("Dark Mode"),
+                          value: _isDarkMode,
+                          onChanged: (bool value) {
+                            setSheetState(() { _isDarkMode = value; });
+                          },
+                        ),
+                        const Divider(),
+                        ListTile(
+                          leading: const Icon(Icons.logout),
+                          title: const Text("Abmelden"),
+                          onTap: () async {
+                            Navigator.pop(context);
+                            await ref.read(authRepositoryProvider).signOut();
+                          },
+                        ),
+                        const Divider(),
+                        ListTile(
+                          leading: const Icon(Icons.delete_forever, color: Colors.red),
+                          title: const Text("Profil löschen", style: TextStyle(color: Colors.red)),
+                          onTap: () {
+                            Navigator.pop(context);
+                            _showDeleteConfirmationDialog(); 
+                          },
+                        ),
+                        const SizedBox(height: 30),
+                      ],
+                    ),
                   ),
-
-                  const Divider(),
-
-                  // 2. Sign Out
-                  ListTile(
-                    leading: const Icon(Icons.logout),
-                    title: const Text("Abmelden"),
-                    onTap: () async {
-                      Navigator.pop(context);
-                      await ref.read(authRepositoryProvider).signOut();
-                    },
-                  ),
-
-                  const Divider(),
-
-                  // 3. Profil löschen
-                  ListTile(
-                    leading: const Icon(Icons.delete_forever, color: Colors.red),
-                    title: const Text("Profil löschen", style: TextStyle(color: Colors.red)),
-                    onTap: () {
-                      Navigator.pop(context);
-                      showNotImplementedSnackbar(context); 
-                    },
-                  ),
-                  
-                  const SizedBox(height: 30),
-                ],
-              ),
-            );
-          }
+                );
+              }
+            ),
+          ),
         );
       },
+    );
+  }
+  // --------------------------------------------------------------------------
+  // SICHERHEITS-DIALOG ZUM LÖSCHEN
+  // --------------------------------------------------------------------------
+  void _showDeleteConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Profil wirklich löschen?"),
+        content: const Text(
+          "Diese Aktion kann nicht rückgängig gemacht werden. Alle deine Daten und Rezepte werden dauerhaft gelöscht.",
+        ),
+        actions: [
+          // Abbrechen Button
+          TextButton(
+            onPressed: () => Navigator.pop(ctx), 
+            child: const Text("Abbrechen"),
+          ),
+          
+          // Löschen Button (Rot)
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(ctx); // Dialog schließen
+              
+              try {
+                // Ladekreis anzeigen, damit User sieht, dass was passiert
+                setState(() => _isLoading = true);
+
+                // REPOSITORY AUFRUFEN (das ruft die SQL-Funktion auf)
+                await ref.read(authRepositoryProvider).deleteAccount();
+                
+                // Hinweis: Nach erfolgreichem Löschen loggt Supabase den User aus.
+                // Dein Router (in router.dart) sollte das merken und automatisch 
+                // zum Login-Screen wechseln.
+                
+              } catch (e) {
+                // Falls was schiefgeht, Loading beenden und Fehler zeigen
+                if (mounted) {
+                  setState(() => _isLoading = false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Fehler: $e"), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            child: const Text("Endgültig löschen", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 }

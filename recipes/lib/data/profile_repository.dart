@@ -1,7 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// Provider to access this repository
+// The Provider
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
   return ProfileRepository(Supabase.instance.client);
 });
@@ -11,7 +11,7 @@ class ProfileRepository {
 
   ProfileRepository(this._supabase);
 
-  // 1. Get the current user's profile
+  // 1. Get Profile
   Future<Map<String, dynamic>?> getProfile() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return null;
@@ -24,51 +24,68 @@ class ProfileRepository {
           .single();
       return data;
     } catch (e) {
-      print('Error fetching profile: $e');
+      // Falls noch kein Profil existiert, ist das kein kritischer Fehler
+      print('Info fetching profile: $e'); 
       return null;
     }
   }
 
-  // 2. Update the Dietary Preference
+  // 2. Update Dietary Preference
   Future<void> updateDietaryPreference(String preference) async {
     final user = _supabase.auth.currentUser;
-    if (user == null) {
-      throw Exception('No user logged in');
-    }
+    if (user == null) throw Exception('No user logged in');
 
     try {
-      print('🔄 Updating dietary preference to: $preference');
+      // Upsert: Erstellt oder aktualisiert das Profil
+      await _supabase.from('profiles').upsert({
+        'id': user.id,
+        'email': user.email, // E-Mail mitspeichern zur Sicherheit
+        'dietary_preferences': {'preference': preference},
+      });
       
-      // Check if profile exists first
-      final existing = await _supabase
-          .from('profiles')
-          .select()
-          .eq('id', user.id)
-          .maybeSingle();
-
-      if (existing == null) {
-        // Profile doesn't exist, create it
-        print('📝 Creating new profile');
-        await _supabase.from('profiles').insert({
-          'id': user.id,
-          'email': user.email,
-          'dietary_preferences': {'preference': preference},
-        });
-      } else {
-        // Profile exists, update it
-        print('📝 Updating existing profile');
-        await _supabase
-            .from('profiles')
-            .update({
-              'dietary_preferences': {'preference': preference},
-            })
-            .eq('id', user.id);
-      }
-      
-      print('✅ Dietary preference updated successfully');
+      print('✅ Dietary preference updated');
     } catch (e) {
-      print('❌ Error updating dietary preference: $e');
+      print('❌ Error updating preference: $e');
       rethrow;
+    }
+  }
+
+  // =========================================================
+  // NEUE METHODE: USERNAME
+  // =========================================================
+  
+  // 3. Update Username
+  Future<void> updateUsername(String newName) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) throw Exception('No user logged in');
+
+    try {
+      print('🔄 Updating display_name to: $newName');
+
+      // Wir nutzen 'upsert' (Update oder Insert), damit es auch klappt,
+      // wenn der User vorher noch gar keinen Eintrag in der Tabelle hatte.
+      await _supabase.from('profiles').upsert({
+        'id': user.id,
+        'display_name': newName,
+        // Wir aktualisieren nur diese Spalte, aber bei upsert müssen wir aufpassen,
+        // dass wir keine anderen Daten überschreiben, falls es ein Insert ist.
+        // Supabase 'update' ist sicherer, wenn das Profil sicher existiert.
+        // Da wir oben im Code aber schon 'updateDietaryPreference' nutzen, 
+        // gehen wir davon aus, dass ein Profil existiert oder angelegt wird.
+      }, onConflict: 'id'); // onConflict sorgt dafür, dass bei gleicher ID geupdatet wird.
+
+      // Alternativ, wenn du sicher bist, dass das Profil existiert:
+      /*
+      await _supabase
+          .from('profiles')
+          .update({'username': newName})
+          .eq('id', user.id);
+      */
+      
+      print('✅ Username updated successfully');
+    } catch (e) {
+      print('❌ Error updating username: $e');
+      throw Exception('Konnte Benutzernamen nicht speichern: $e');
     }
   }
 }

@@ -90,7 +90,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     .signUp(
                       email: regEmailController.text.trim(),
                       password: regPasswordController.text.trim(),
-                      // username: regUsernameController.text.trim(), // Falls dein Backend das unterstützt
+                      username: regUsernameController.text.trim(), // Falls dein Backend das unterstützt
                     );
 
                 if (context.mounted) {

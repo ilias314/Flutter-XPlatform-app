@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:recipes/models/recipe.dart'; 
+import 'package:recipes/models/recipe.dart';
+import 'package:recipes/widgets/ui_utils.dart'; // To access showNotImplementedSnackbar
 
 // ------------------------------------------------------
 // 1. The Real Recipe Card (Used in Home Screen)
@@ -15,52 +16,126 @@ class RecipeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Helper to get the first category or a default text
+    final String categoryText = recipe.categories.isNotEmpty 
+        ? recipe.categories.first 
+        : 'Allgemein';
+
     return GestureDetector(
       onTap: () {
         context.push('/recipes/${recipe.id}');
       },
       child: Card(
         clipBehavior: Clip.antiAlias,
-        elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 4, // Slightly higher elevation for better look
+        surfaceTintColor: Colors.white, // Ensures card stays white-ish
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // IMAGE AREA
+            // --- TOP AREA: IMAGE + FAVORITE BUTTON ---
             Expanded(
-              child: recipe.imageUrl != null && recipe.imageUrl!.isNotEmpty
-                  ? Image.network(
-                      recipe.imageUrl!,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      errorBuilder: (ctx, _, __) => _buildPlaceholderImage(),
-                    )
-                  : _buildPlaceholderImage(),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // 1. Image
+                  recipe.imageUrl != null && recipe.imageUrl!.isNotEmpty
+                      ? Image.network(
+                          recipe.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (ctx, _, __) => _buildPlaceholderImage(),
+                        )
+                      : _buildPlaceholderImage(),
+
+                  // 2. Gradient Overlay (Optional, makes text/icons pop if needed, keeping it subtle here)
+                  
+                  // 3. Favorite Button (Top Right)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Material(
+                      color: Colors.white.withOpacity(0.85), // Semi-transparent white
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () {
+                          // Placeholder for favorite logic
+                          showNotImplementedSnackbar(context); 
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.all(6.0),
+                          child: Icon(
+                            Icons.favorite_border, // Use Icons.favorite for filled state
+                            size: 20,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // 4. Rating Badge (Bottom Left of Image) - "Looking Good" touch
+                  Positioned(
+                    bottom: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.star, color: Colors.amber, size: 14),
+                          const SizedBox(width: 4),
+                          Text(
+                            recipe.avgRating > 0 ? recipe.avgRating.toStringAsFixed(1) : "Neu",
+                            style: const TextStyle(
+                              color: Colors.white, 
+                              fontSize: 12, 
+                              fontWeight: FontWeight.bold
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             
-            // TEXT AREA
+            // --- BOTTOM AREA: DETAILS ---
             Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: const EdgeInsets.all(12.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 1. Title
                   Text(
-                    // --- FIX: Changed 'title' to 'name' ---
-                    // If this is still red, check lib/models/recipe.dart to see the correct variable name.
                     recipe.name, 
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
+
+                  // 2. Info Row: Time & Difficulty
                   Row(
                     children: [
-                      const Icon(Icons.access_time, size: 14, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${recipe.preparationTime} Min.',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
+                      // Time
+                      _buildIconText(Icons.access_time, '${recipe.preparationTime} Min'),
+                      const SizedBox(width: 12),
+                      // Difficulty
+                      _buildIconText(Icons.bar_chart, recipe.difficulty),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 6),
+
+                  // 3. Info Row: Category (Gerichttyp)
+                  Row(
+                    children: [
+                      _buildIconText(Icons.eco_outlined, categoryText, color: Colors.green),
                     ],
                   ),
                 ],
@@ -72,18 +147,32 @@ class RecipeCard extends StatelessWidget {
     );
   }
 
+  // Helper Widget for small icon+text rows
+  Widget _buildIconText(IconData icon, String text, {Color color = Colors.grey}) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+        ),
+      ],
+    );
+  }
+
   Widget _buildPlaceholderImage() {
     return Container(
-      color: Colors.grey[300],
+      color: Colors.grey[200],
       child: const Center(
-        child: Icon(Icons.fastfood, size: 40, color: Colors.grey),
+        child: Icon(Icons.restaurant, size: 40, color: Colors.grey),
       ),
     );
   }
 }
 
 // ------------------------------------------------------
-// 2. The Placeholder (Used in Profile/RecipeSection)
+// 2. The Placeholder (Unchanged)
 // ------------------------------------------------------
 class RecipeCardPlaceholder extends StatelessWidget {
   const RecipeCardPlaceholder({super.key});

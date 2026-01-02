@@ -1,20 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:recipes/data/einkaufsliste_repository.dart';
+import 'package:recipes/data/recipe_repository.dart';
+import 'package:recipes/models/comment.dart';
+import 'package:recipes/providers/favorites_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:recipes/models/recipe.dart';
 import 'package:recipes/data/recipe_repository.dart';
 import 'package:recipes/widgets/ui_utils.dart';
+import 'package:recipes/data/weekly_plan_repository.dart';
+import 'package:share_plus/share_plus.dart';
 
-class RecipeDetailScreen extends StatefulWidget {
+class RecipeDetailScreen extends ConsumerStatefulWidget {
   // We accept the ID string now, not the full object
   final String recipeId;
 
   const RecipeDetailScreen({super.key, required this.recipeId});
 
   @override
-  State<RecipeDetailScreen> createState() => _RecipeDetailScreenState();
+  ConsumerState<RecipeDetailScreen> createState() => _RecipeDetailScreenState();
 }
 
-class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
+class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   late Future<Recipe> _recipeFuture;
   Future<List<Map<String, dynamic>>>? _ingredientsFuture;
   final GlobalKey _commentsKey = GlobalKey();
@@ -27,13 +34,13 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
   // Controllers
   final TextEditingController _commentController = TextEditingController();
-  final List<String> _comments = []; // Dummy comments
-
+  List<RecipeComment> _comments = [];
   @override
   void initState() {
     super.initState();
     // 1. Start fetching the recipe immediately
     _recipeFuture = _fetchRecipe();
+    _fetchComments();
     _scrollController.addListener(_scrollListener);
   }
 
@@ -74,23 +81,51 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   Future<Recipe> _fetchRecipe() async {
-    // Fetch the recipe row from Supabase
+    final user = Supabase.instance.client.auth.currentUser;
+
+    // holen Sie die Rezeptdetails zusammen mit den Bewertungen
     final response = await Supabase.instance.client
         .from('recipes')
-        .select()
+        .select('''
+        *,
+        ratings(stars)
+      ''')
         .eq('id', widget.recipeId)
         .single();
 
-    // Create the Recipe object
+    // Berechnen Sie die durchschnittliche Bewertung
+    final List ratings = response['ratings'] as List;
+    double average = 0.0;
+    if (ratings.isNotEmpty) {
+      average =
+          ratings.map((r) => r['stars'] as num).reduce((a, b) => a + b) /
+          ratings.length;
+    }
+
     final recipe = Recipe.fromJson(response);
 
-    // 2. Once we have the recipe, initialize portions and fetch ingredients
-    // We do this inside the future or setState, but to keep it simple we set defaults here.
-    _currentPortions = recipe.portions > 0 ? recipe.portions : 1;
+    // Setzen Sie die berechnete durchschnittliche Bewertung
+    recipe.avgRating = average;
 
-    // Start fetching ingredients
+    _currentPortions = recipe.portions > 0 ? recipe.portions : 1;
     final repo = RecipeRepository(Supabase.instance.client);
     _ingredientsFuture = repo.getRecipeIngredients(recipe.id!);
+
+    // Holen Sie die Bewertung des aktuellen Benutzers, falls vorhanden
+    if (user != null) {
+      final ratingResponse = await Supabase.instance.client
+          .from('ratings')
+          .select('stars')
+          .eq('recipe_id', widget.recipeId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      if (ratingResponse != null && mounted) {
+        setState(() {
+          _userRating = (ratingResponse['stars'] as num).toDouble();
+        });
+      }
+    }
 
     return recipe;
   }
@@ -101,19 +136,227 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     return (baseAmount / originalPortions) * _currentPortions;
   }
 
-  void _addComment() {
-    if (_commentController.text.trim().isNotEmpty) {
+  // 2. Add a method to fetch comments from Supabase
+  Future<void> _fetchComments() async {
+    final response = await Supabase.instance.client
+        .from('comments')
+        .select()
+        .eq('recipe_id', widget.recipeId)
+        .order('created_at', ascending: false);
+
+    if (mounted) {
       setState(() {
-        _comments.add("${_commentController.text.trim()} - you");
-        _commentController.clear();
+        _comments = (response as List)
+            .map((data) => RecipeComment.fromJson(data))
+            .toList();
       });
-      _scrollToComments();
     }
   }
 
-  void _saveUserRating(double rating) {
-    //hier könnten Sie die Bewertung in der Datenbank speichern
-    showNotImplementedSnackbar(context);
+  Future<void> _addComment() async {
+    final text = _commentController.text.trim();
+    final user = Supabase.instance.client.auth.currentUser;
+
+    if (text.isNotEmpty && user != null) {
+      try {
+        await Supabase.instance.client.from('comments').insert({
+          'recipe_id': widget.recipeId,
+          'user_id': user.id,
+          'comment_text': text,
+        });
+
+        _commentController.clear();
+        await _fetchComments(); 
+        _scrollToComments();
+      } catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Fehler beim Senden: $e")));
+      }
+    }
+  }
+
+  Future<void> _saveUserRating(double rating) async {
+    final user = Supabase.instance.client.auth.currentUser;
+
+    if (user != null) {
+      try {
+        
+        await Supabase.instance.client.from('ratings').upsert(
+          {'recipe_id': widget.recipeId, 'user_id': user.id, 'stars': rating},
+          onConflict: 'user_id, recipe_id',
+        ); 
+
+        if (mounted) {
+          setState(() {
+            _recipeFuture = _fetchRecipe();
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Bewertung gespeichert!"),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Fehler beim Speichern der Bewertung: $e")),
+          );
+        }
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Bitte melden Sie sich an, um zu bewerten."),
+        ),
+      );
+    }
+  }
+
+  void _shareRecipe(Recipe recipe) {
+    final String text =
+        '''
+      Check out this delicious recipe: ${recipe.name}!
+
+      ⏱ Preparation time: ${recipe.preparationTime} min
+
+      📊 Difficulty: ${recipe.difficulty}
+
+      Download our App to see the full details!
+
+       ''';
+
+    Share.share(text, subject: 'Look at this recipe: ${recipe.name}');
+  }
+
+  Future<void> _handleAddToWeeklyPlan() async {
+    // A. Datumsauswahl anzeigen
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      locale: const Locale('de', 'DE'),
+    );
+
+    if (pickedDate != null) {
+      try {
+        final repo = WeeklyPlanRepository(Supabase.instance.client);
+        await repo.addRecipeToPlan(
+          recipeId: widget.recipeId,
+          scheduledDate: pickedDate,
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Rezept zum Wochenplan hinzugefügt!'),
+              backgroundColor: Color.fromARGB(255, 5, 145, 22),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _showIngredientSelectionDialog(
+    List<Map<String, dynamic>> ingredients,
+    int originalPortions,
+  ) async {
+    // Liste für die ausgewählten Zutaten
+    List<Map<String, dynamic>> selectedIngredients = List.from(ingredients);
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          // notwendig, um den Zustand innerhalb des Dialogs zu verwalten
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text("Zutaten auswählen"),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: ingredients.length,
+                  itemBuilder: (context, index) {
+                    final ing = ingredients[index];
+                    final isSelected = selectedIngredients.contains(ing);
+
+                    return CheckboxListTile(
+                      title: Text("${ing['name']}"),
+                      subtitle: Text("${ing['quantity']} ${ing['unit']}"),
+                      value: isSelected,
+                      onChanged: (bool? value) {
+                        setDialogState(() {
+                          if (value == true) {
+                            selectedIngredients.add(ing);
+                          } else {
+                            selectedIngredients.remove(ing);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Abbrechen"),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    try {
+                      // Speichern der ausgewählten Zutaten in der Einkaufsliste
+                      final ingredientsToSave = selectedIngredients
+                          .map(
+                            (ing) => {
+                              'ingredient_id': ing['ingredient_id'],
+                              'name': ing['name'],
+                              'unit': ing['unit'],
+                              'quantity': _calculateAmount(
+                                ing['quantity'],
+                                originalPortions,
+                              ),
+                            },
+                          )
+                          .toList();
+
+                      await EinkaufslisteRepository().addIngredientsToList(
+                        ingredientsToSave,
+                      );
+
+                      if (mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Zur Einkaufsliste hinzugefügt!'),
+                            backgroundColor: Color.fromARGB(255, 5, 145, 22),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text("Fehler: $e")));
+                    }
+                  },
+                  child: const Text("Hinzufügen"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -168,7 +411,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                         // Pass the recipe portions to helper
                         _buildIngredientsAndPortions(context, r.portions),
                         const SizedBox(height: 30),
-                        _buildActionButtons(context),
+                        _buildActionButtons(context, r),
                         const SizedBox(height: 30),
                         _buildStepsSection(context, r),
                         const SizedBox(height: 30),
@@ -216,6 +459,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   Widget _buildSliverAppBar(BuildContext context, Recipe r) {
+    final isFav = ref.watch(favoritesProvider).any((fav) => fav.id == r.id);
     return SliverAppBar(
       expandedHeight: 250.0,
       pinned: true,
@@ -234,12 +478,17 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.favorite_border, color: Colors.white,),
-          onPressed: () => showNotImplementedSnackbar(context),
+          icon: Icon(
+            isFav ? Icons.favorite : Icons.favorite_border,
+            color: isFav ? Colors.red : Colors.white,
+          ),
+          onPressed: () {
+            ref.read(favoritesProvider.notifier).toggleFavorite(r);
+          },
         ),
         IconButton(
           icon: const Icon(Icons.share, color: Colors.white),
-          onPressed: () => showNotImplementedSnackbar(context),
+          onPressed: () => _shareRecipe(r),
         ),
       ],
 
@@ -288,10 +537,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             Text(r.difficulty),
 
             const SizedBox(width: 20),
-            const Icon(Icons.eco, size: 18, color:Colors.grey),
+            const Icon(Icons.eco, size: 18, color: Colors.grey),
             const SizedBox(width: 5),
-            Text(r.categories.isEmpty ? 'Allgemein' : r.categories.join(', '),
-            ),
+            Text(r.categories.isEmpty ? 'Allgemein' : r.categories.join(', ')),
           ],
         ),
         const SizedBox(height: 10),
@@ -307,10 +555,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       {'label': 'Protein', 'value': r.protein, 'unit': 'g'},
       {'label': 'Kohlenhydrate', 'value': r.carbs, 'unit': 'g'},
       {'label': 'Fett', 'value': r.fat, 'unit': 'g'},
-      {'label':'Ballaststoffe', 'value': r.fiber,'unit':'g'},
-      {'label':'Zucker', 'value': r.sugar,'unit':'g'},
-
-
+      {'label': 'Ballaststoffe', 'value': r.fiber, 'unit': 'g'},
+      {'label': 'Zucker', 'value': r.sugar, 'unit': 'g'},
     ];
 
     return Column(
@@ -405,11 +651,14 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                 FutureBuilder<List<Map<String, dynamic>>>(
                   future: _ingredientsFuture,
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) return const LinearProgressIndicator();
-                    if (snapshot.hasError) return const Text("Zutaten konnten nicht geladen werden");
-                    
+                    if (snapshot.connectionState == ConnectionState.waiting)
+                      return const LinearProgressIndicator();
+                    if (snapshot.hasError)
+                      return const Text("Zutaten konnten nicht geladen werden");
+
                     final ingredients = snapshot.data ?? [];
-                    if (ingredients.isEmpty) return const Text("Keine Zutaten hinterlegt.");
+                    if (ingredients.isEmpty)
+                      return const Text("Keine Zutaten hinterlegt.");
 
                     return ListView.builder(
                       shrinkWrap: true,
@@ -418,13 +667,20 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       itemBuilder: (context, index) {
                         final ing = ingredients[index];
                         // Calculate dynamic amount based on _currentPortions vs originalPortions
-                        final double amount = _calculateAmount(ing['quantity'] ?? 0.0, originalPortions);
-                        
-                        final String amountStr = amount % 1 == 0 ? amount.toInt().toString() : amount.toStringAsFixed(1);
-                        
+                        final double amount = _calculateAmount(
+                          ing['quantity'] ?? 0.0,
+                          originalPortions,
+                        );
+
+                        final String amountStr = amount % 1 == 0
+                            ? amount.toInt().toString()
+                            : amount.toStringAsFixed(1);
+
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4.0),
-                          child: Text('• $amountStr ${ing['unit']} ${ing['name']}'),
+                          child: Text(
+                            '• $amountStr ${ing['unit']} ${ing['name']}',
+                          ),
                         );
                       },
                     );
@@ -434,7 +690,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           ),
         ),
         const SizedBox(width: 20),
-        
+
         // Portion Calculator
         Expanded(
           flex: 1,
@@ -453,10 +709,18 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                     IconButton(
                       icon: const Icon(Icons.remove, size: 20),
                       onPressed: () {
-                        if (_currentPortions > 1) setState(() => _currentPortions--);
+                        if (_currentPortions > 1)
+                          setState(() => _currentPortions--);
                       },
                     ),
-                    Text('$_currentPortions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Theme.of(context).primaryColor)),
+                    Text(
+                      '$_currentPortions',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                    ),
                     IconButton(
                       icon: const Icon(Icons.add, size: 20),
                       onPressed: () => setState(() => _currentPortions++),
@@ -472,7 +736,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   /// Erstellt die Buttons zum Speichern der Einkaufsliste und Hinzufügen zum Wochenplan.
-  Widget _buildActionButtons(BuildContext context) {
+  Widget _buildActionButtons(BuildContext context, Recipe r) {
     // ... (unveränderte Logik)
     return Column(
       children: [
@@ -480,7 +744,15 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            onPressed: () => showNotImplementedSnackbar(context),
+            onPressed: () async {
+              if (_ingredientsFuture != null) {
+                final ingredients = await _ingredientsFuture;
+                if (ingredients != null && mounted) {
+                  // Speichern der ausgewählten Zutaten in der Einkaufsliste
+                  _showIngredientSelectionDialog(ingredients, r.portions);
+                }
+              }
+            },
             icon: const Icon(Icons.shopping_cart),
             label: const Text('Zur Einkaufsliste hinzufügen'),
             style: ElevatedButton.styleFrom(
@@ -499,7 +771,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
-            onPressed: () => showNotImplementedSnackbar(context),
+            onPressed: _handleAddToWeeklyPlan,
             icon: const Icon(Icons.calendar_month),
             label: const Text('Zum Wochenplan hinzufügen'),
             style: OutlinedButton.styleFrom(
@@ -516,16 +788,23 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     );
   }
 
-
   Widget _buildStepsSection(BuildContext context, Recipe r) {
-    final steps = r.description.split('\n').where((s) => s.trim().isNotEmpty).toList();
+    final steps = r.description
+        .split('\n')
+        .where((s) => s.trim().isNotEmpty)
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Zubereitung', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+        Text(
+          'Zubereitung',
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 10),
-        
+
         if (steps.length <= 1)
           Text(r.description, style: const TextStyle(fontSize: 16, height: 1.5))
         else
@@ -542,10 +821,21 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                     CircleAvatar(
                       backgroundColor: Theme.of(context).primaryColor,
                       radius: 12,
-                      child: Text('${index + 1}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                      child: Text(
+                        '${index + 1}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 10),
-                    Expanded(child: Text(steps[index], style: const TextStyle(fontSize: 15))),
+                    Expanded(
+                      child: Text(
+                        steps[index],
+                        style: const TextStyle(fontSize: 15),
+                      ),
+                    ),
                   ],
                 ),
               );
@@ -585,11 +875,16 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _comments.length,
             itemBuilder: (context, index) {
+              final comment = _comments[index];
               return ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(
-                  _comments[index],
+                  comment.content,
                   style: const TextStyle(fontSize: 14),
+                ),
+                subtitle: Text(
+                  "veröffentlicht am ${comment.createdAt.day}/${comment.createdAt.month}",
+                  style: const TextStyle(fontSize: 10),
                 ),
                 leading: const Icon(Icons.chat_bubble_outline, size: 16),
               );

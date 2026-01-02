@@ -12,7 +12,7 @@ class Recipe {
   final double sugar;
   final int portions;
   final String description;
-  final double avgRating; 
+   double avgRating; 
   final DateTime createdAt;
   
   // Changed from single category to list of categories

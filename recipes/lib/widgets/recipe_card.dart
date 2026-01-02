@@ -1,28 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:recipes/models/recipe.dart';
+import 'package:recipes/providers/favorites_provider.dart';
 import 'package:recipes/widgets/ui_utils.dart'; // To access showNotImplementedSnackbar
 
 // ------------------------------------------------------
 // 1. The Real Recipe Card (Used in Home Screen)
 // ------------------------------------------------------
-class RecipeCard extends StatelessWidget {
+class RecipeCard extends ConsumerWidget {
   final Recipe recipe;
+  final VoidCallback? onTap;
 
-  const RecipeCard({
-    super.key,
-    required this.recipe,
+ const RecipeCard({
+    super.key, 
+    required this.recipe, 
+    this.onTap,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isFav = ref
+        .watch(favoritesProvider)
+        .any((fav) => fav.id == recipe.id);
     // Helper to get the first category or a default text
-    final String categoryText = recipe.categories.isNotEmpty 
-        ? recipe.categories.first 
+    final String categoryText = recipe.categories.isNotEmpty
+        ? recipe.categories.first
         : 'Allgemein';
 
     return GestureDetector(
-      onTap: () {
+      onTap: onTap ?? () { 
         context.push('/recipes/${recipe.id}');
       },
       child: Card(
@@ -43,31 +50,36 @@ class RecipeCard extends StatelessWidget {
                       ? Image.network(
                           recipe.imageUrl!,
                           fit: BoxFit.cover,
-                          errorBuilder: (ctx, _, __) => _buildPlaceholderImage(),
+                          errorBuilder: (ctx, _, __) =>
+                              _buildPlaceholderImage(),
                         )
                       : _buildPlaceholderImage(),
 
                   // 2. Gradient Overlay (Optional, makes text/icons pop if needed, keeping it subtle here)
-                  
+
                   // 3. Favorite Button (Top Right)
                   Positioned(
                     top: 8,
                     right: 8,
                     child: Material(
-                      color: Colors.white.withOpacity(0.85), // Semi-transparent white
+                      color: Colors.white.withOpacity(
+                        0.85,
+                      ), // Semi-transparent white
                       shape: const CircleBorder(),
                       child: InkWell(
                         customBorder: const CircleBorder(),
                         onTap: () {
                           // Placeholder for favorite logic
-                          showNotImplementedSnackbar(context); 
+                          ref
+                              .read(favoritesProvider.notifier)
+                              .toggleFavorite(recipe);
                         },
-                        child: const Padding(
+                        child:  Padding(
                           padding: EdgeInsets.all(6.0),
                           child: Icon(
-                            Icons.favorite_border, // Use Icons.favorite for filled state
+                            isFav ? Icons.favorite : Icons.favorite_border,
                             size: 20,
-                            color: Colors.black54,
+                            color: isFav ? Colors.red : Colors.black54,
                           ),
                         ),
                       ),
@@ -79,7 +91,10 @@ class RecipeCard extends StatelessWidget {
                     bottom: 8,
                     left: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.black.withOpacity(0.7),
                         borderRadius: BorderRadius.circular(12),
@@ -89,11 +104,13 @@ class RecipeCard extends StatelessWidget {
                           const Icon(Icons.star, color: Colors.amber, size: 14),
                           const SizedBox(width: 4),
                           Text(
-                            recipe.avgRating > 0 ? recipe.avgRating.toStringAsFixed(1) : "Neu",
+                            recipe.avgRating > 0
+                                ? recipe.avgRating.toStringAsFixed(1)
+                                : "Neu",
                             style: const TextStyle(
-                              color: Colors.white, 
-                              fontSize: 12, 
-                              fontWeight: FontWeight.bold
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ],
@@ -103,7 +120,7 @@ class RecipeCard extends StatelessWidget {
                 ],
               ),
             ),
-            
+
             // --- BOTTOM AREA: DETAILS ---
             Padding(
               padding: const EdgeInsets.all(12.0),
@@ -112,10 +129,13 @@ class RecipeCard extends StatelessWidget {
                 children: [
                   // 1. Title
                   Text(
-                    recipe.name, 
+                    recipe.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
                   const SizedBox(height: 8),
 
@@ -123,19 +143,26 @@ class RecipeCard extends StatelessWidget {
                   Row(
                     children: [
                       // Time
-                      _buildIconText(Icons.access_time, '${recipe.preparationTime} Min'),
+                      _buildIconText(
+                        Icons.access_time,
+                        '${recipe.preparationTime} Min',
+                      ),
                       const SizedBox(width: 12),
                       // Difficulty
                       _buildIconText(Icons.bar_chart, recipe.difficulty),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 6),
 
                   // 3. Info Row: Category (Gerichttyp)
                   Row(
                     children: [
-                      _buildIconText(Icons.eco_outlined, categoryText, color: Colors.green),
+                      _buildIconText(
+                        Icons.eco_outlined,
+                        categoryText,
+                        color: Colors.green,
+                      ),
                     ],
                   ),
                 ],
@@ -148,15 +175,16 @@ class RecipeCard extends StatelessWidget {
   }
 
   // Helper Widget for small icon+text rows
-  Widget _buildIconText(IconData icon, String text, {Color color = Colors.grey}) {
+  Widget _buildIconText(
+    IconData icon,
+    String text, {
+    Color color = Colors.grey,
+  }) {
     return Row(
       children: [
         Icon(icon, size: 14, color: color),
         const SizedBox(width: 4),
-        Text(
-          text,
-          style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-        ),
+        Text(text, style: TextStyle(fontSize: 12, color: Colors.grey[700])),
       ],
     );
   }

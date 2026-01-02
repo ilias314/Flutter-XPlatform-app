@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:recipes/pages/create_recipe_screen.dart';
+import 'package:recipes/pages/einkaufsliste_screen.dart';
 import 'package:recipes/pages/weekly_plan_screen.dart';
 import 'package:recipes/widgets/bottom_navbar.dart'; 
 import 'package:recipes/pages/home_screen.dart'; // Ensure StartseitePages is exported here
@@ -29,7 +30,7 @@ class _MainScaffoldState extends State<MainScaffold> {
     const CreateRezeptPages(),
     
     // Index 3: Einkaufsliste
-    const Center(child: Text('Einkaufsliste Screen')),
+    const EinkaufslisteScreen(),
     
     // Index 4: Profil
     const ProfileScreen(), 

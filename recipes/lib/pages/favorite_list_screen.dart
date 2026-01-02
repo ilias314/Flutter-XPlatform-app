@@ -1,64 +1,35 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import '../models/recipe.dart'; 
-import '../widgets/weekly_recipe_card.dart'; 
+import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:recipes/widgets/weekly_recipe_card.dart';
+import '../providers/favorites_provider.dart';
 
-class FavoriteListScreen extends StatefulWidget {
+class FavoriteListScreen extends ConsumerWidget {
   const FavoriteListScreen({super.key});
 
   @override
-  State<FavoriteListScreen> createState() => _FavoriteListScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 1. Hol dir die Liste der Favoriten-Rezepte aus dem Provider
+    final favoriteRecipes = ref.watch(favoritesProvider);
 
-class _FavoriteListScreenState extends State<FavoriteListScreen> {
- 
-  final List<Recipe> _favoriteRecipes = []; 
-  // -----------------------------------------------------------
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Meine Favoriten'),
         centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/');
-            }
-          },
-        ),
       ),
-      // Hier prüft er: Ist die Liste leer? -> Ja -> Zeige den Text.
-      body: _favoriteRecipes.isEmpty
+      body: favoriteRecipes.isEmpty
           ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.favorite_border, size: 60, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    'Noch keine Favoriten gespeichert.',
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
-                ],
-              ),
+              child: Text('Noch keine Favoriten gespeichert.'),
             )
           : ListView.separated(
               padding: const EdgeInsets.all(16.0),
-              itemCount: _favoriteRecipes.length,
+              itemCount: favoriteRecipes.length,
               separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
-                final recipe = _favoriteRecipes[index];
-                
+                final recipe = favoriteRecipes[index];
                 return SizedBox(
                   height: 130, 
-                  child: WochenplanRecipeCard(
-                    recipe: recipe, 
-                  ),
+                  child: WochenplanRecipeCard(recipe: recipe),
                 );
               },
             ),

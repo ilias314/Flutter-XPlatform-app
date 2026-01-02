@@ -9,6 +9,7 @@ import 'pages/search_screen.dart';
 import 'pages/recipe_detail_screen.dart'; 
 import 'pages/favorite_list_screen.dart';
 import 'pages/my_recipes_list_screen.dart';
+import 'pages/create_recipe_screen.dart';
  
 
 final router = GoRouter(
@@ -22,6 +23,10 @@ final router = GoRouter(
     GoRoute(
       path: '/',
       builder: (context, state) => const MainScaffold(), 
+    ),
+    GoRoute(
+      path: '/create-recipe',
+      builder: (context, state) => const CreateRezeptPages(), 
     ),
     GoRoute(
       path: '/login',

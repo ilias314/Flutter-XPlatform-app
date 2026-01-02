@@ -13,8 +13,30 @@ class RecipeRepository {
         .from('categories')
         .select()
         .order('name', ascending: true);
-    
+
     return data.map((json) => RecipeCategory.fromJson(json)).toList();
+  }
+
+  Future<List<Recipe>> getUserRecipes(String userId) async {
+    try {
+      final response = await _client
+          .from('recipes')
+          .select('''
+          *,
+          recipe_categories (
+            categories (
+              name
+            )
+          )
+        ''') 
+          .eq('user_id', userId)
+          .order('created_at', ascending: false);
+
+      
+      return (response as List).map((json) => Recipe.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Erreur lors de la récupération de vos recettes : $e');
+    }
   }
 
   /// Main function to save a new recipe and its ingredients
@@ -35,25 +57,28 @@ class RecipeRepository {
     double sugar = 0.0,
     double fiber = 0.0,
   }) async {
-    
     // --- STEP 1: Insert the Recipe ---
-    final recipeResponse = await _client.from('recipes').insert({
-      'user_id': userId,
-      'name': name,
-      'description': description,
-      'preparation_time': prepTime,
-      'portions': portions,
-      'difficulty': difficulty,
-      'image_url': imageUrl,
-      'calories_per_portion': calories,
-      'protein_per_portion': protein,
-      'carbs_per_portion': carbs,
-      'fat_per_portion': fat,
-      'sugar_per_portion': sugar,
-      'fiber_per_portion': fiber,
-      'avg_rating': 0.0,
-      'rating_count': 0,
-    }).select('id').single(); 
+    final recipeResponse = await _client
+        .from('recipes')
+        .insert({
+          'user_id': userId,
+          'name': name,
+          'description': description,
+          'preparation_time': prepTime,
+          'portions': portions,
+          'difficulty': difficulty,
+          'image_url': imageUrl,
+          'calories_per_portion': calories,
+          'protein_per_portion': protein,
+          'carbs_per_portion': carbs,
+          'fat_per_portion': fat,
+          'sugar_per_portion': sugar,
+          'fiber_per_portion': fiber,
+          'avg_rating': 0.0,
+          'rating_count': 0,
+        })
+        .select('id')
+        .single();
 
     final String newRecipeId = recipeResponse['id'];
 
@@ -77,17 +102,24 @@ class RecipeRepository {
 
     // --- STEP 3: Link Categories to Recipe ---
     if (categoryIds.isNotEmpty) {
-      final categoryLinks = categoryIds.map((categoryId) => {
-        'recipe_id': newRecipeId,
-        'category_id': categoryId,
-      }).toList();
+      final categoryLinks = categoryIds
+          .map(
+            (categoryId) => {
+              'recipe_id': newRecipeId,
+              'category_id': categoryId,
+            },
+          )
+          .toList();
 
       await _client.from('recipe_categories').insert(categoryLinks);
     }
   }
 
   /// Helper: Checks if ingredient exists. If yes, returns ID. If no, creates it and returns new ID.
-  Future<String> _getOrCreateIngredientId(String name, String defaultUnit) async {
+  Future<String> _getOrCreateIngredientId(
+    String name,
+    String defaultUnit,
+  ) async {
     final existing = await _client
         .from('ingredients')
         .select('id')
@@ -100,16 +132,13 @@ class RecipeRepository {
 
     final newIngredient = await _client
         .from('ingredients')
-        .insert({
-          'name': name,
-          'default_unit': defaultUnit
-        })
+        .insert({'name': name, 'default_unit': defaultUnit})
         .select('id')
         .single();
-        
+
     return newIngredient['id'];
   }
-  
+
   /// Helper: Fetch all recipes for the Home Screen with categories
   Future<List<Recipe>> getRecipes() async {
     final data = await _client
@@ -123,40 +152,45 @@ class RecipeRepository {
           )
         ''')
         .order('created_at', ascending: false);
-    
+
     return data.map((json) => Recipe.fromJson(json)).toList();
   }
-  
+
   /// Fetch recipes filtered by category names
-  Future<List<Recipe>> getRecipesByCategories(List<String> categoryNames) async {
+  Future<List<Recipe>> getRecipesByCategories(
+    List<String> categoryNames,
+  ) async {
     if (categoryNames.isEmpty) {
       return getRecipes();
     }
-    
+
     // First get category IDs from names
     final categoryData = await _client
         .from('categories')
         .select('id')
         .inFilter('name', categoryNames);
-    
+
     final categoryIds = categoryData.map((c) => c['id'] as String).toList();
-    
+
     if (categoryIds.isEmpty) {
       return [];
     }
-    
+
     // Then get recipes that have these categories
     final recipeLinks = await _client
         .from('recipe_categories')
         .select('recipe_id')
         .inFilter('category_id', categoryIds);
-    
-    final recipeIds = recipeLinks.map((r) => r['recipe_id'] as String).toSet().toList();
-    
+
+    final recipeIds = recipeLinks
+        .map((r) => r['recipe_id'] as String)
+        .toSet()
+        .toList();
+
     if (recipeIds.isEmpty) {
       return [];
     }
-    
+
     // Finally fetch the full recipe data
     final data = await _client
         .from('recipes')
@@ -170,23 +204,40 @@ class RecipeRepository {
         ''')
         .inFilter('id', recipeIds)
         .order('avg_rating', ascending: false);
-    
+
     return data.map((json) => Recipe.fromJson(json)).toList();
   }
+
   /// Fetch ingredients for a specific recipe
   /// Returns a list like: [{'name': 'Tomato', 'quantity': 2.0, 'unit': 'pcs'}
-  Future<List<Map<String, dynamic>>> getRecipeIngredients(String recipeId) async {
+  Future<List<Map<String, dynamic>>> getRecipeIngredients(
+    String recipeId,
+  ) async {
     try {
       final response = await _client
           .from('recipe_ingredients')
-          .select('quantity, unit, ingredients(name)') // Join with ingredients table
+          .select('''
+          quantity,
+          unit,
+          ingredient_id,
+          ingredients (
+            id,
+            name
+          )
+        ''')
           .eq('recipe_id', recipeId);
-      
-      return List<Map<String, dynamic>>.from(response.map((item) => {
-        'name': item['ingredients']['name'], // Access nested data
-        'quantity': (item['quantity'] ?? 0).toDouble(),
-        'unit': item['unit'] ?? '',
-      }));
+
+      return List<Map<String, dynamic>>.from(
+        response.map(
+          (item) => {
+           
+            'ingredient_id': item['ingredient_id'],
+            'name': item['ingredients']['name'],
+            'quantity': (item['quantity'] ?? 0).toDouble(),
+            'unit': item['unit'] ?? '',
+          },
+        ),
+      );
     } catch (e) {
       print('Error loading ingredients: $e');
       return [];

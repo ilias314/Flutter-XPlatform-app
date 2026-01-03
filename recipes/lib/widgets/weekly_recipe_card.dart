@@ -106,15 +106,13 @@ class WochenplanRecipeCard extends StatelessWidget {
                         ],
                       ),
 
-                      // B. Bewertung (Dummy)
+                      // B. Bewertung 
                       Row(
                         children: [
                           const Icon(Icons.star, color: Colors.amber, size: 15),
                           Text(
-                            recipe != null &&
-                                    recipe!.avgRating != null &&
-                                    recipe!.avgRating! > 0
-                                ? '${recipe!.avgRating!.toStringAsFixed(1)} '
+                            recipe!.avgRating > 0
+                                ? '${recipe!.avgRating.toStringAsFixed(1)} '
                                 : 'Neu',
                             style: const TextStyle(fontSize: 12),
                           ),

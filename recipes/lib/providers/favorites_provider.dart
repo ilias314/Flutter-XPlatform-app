@@ -30,7 +30,7 @@ class FavoritesNotifier extends StateNotifier<List<Recipe>> {
 
       state = loadedRecipes;
     } catch (e) {
-      print('Erreur chargement favoris: $e');
+      print('Fehler beim Laden der Favoriten: $e');
     }
   }
 

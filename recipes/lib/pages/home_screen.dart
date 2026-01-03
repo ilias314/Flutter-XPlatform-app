@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:recipes/providers/home_provider.dart';
 import 'package:recipes/widgets/ui_utils.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:recipes/data/recipe_repository.dart'; 
@@ -16,7 +17,6 @@ class StartseitePages extends ConsumerStatefulWidget {
 }
 
 class _StartseitePagesState extends ConsumerState<StartseitePages> {
-  late Future<List<Recipe>> _recipesFuture;
   
   // Default preference until loaded from DB
   String _userDietaryPreference = "Alles"; 
@@ -24,8 +24,6 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
   @override
   void initState() {
     super.initState();
-    final repo = RecipeRepository(Supabase.instance.client);
-    _recipesFuture = repo.getRecipes();
     _loadUserPreference();
   }
 
@@ -46,6 +44,7 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
 
   @override
   Widget build(BuildContext context) {
+    final recipesAsync = ref.watch(allRecipesProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('RecipeS'),
@@ -116,19 +115,10 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
         ),
       ),
 
-      body: FutureBuilder<List<Recipe>>(
-        future: _recipesFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(child: Text('Fehler: ${snapshot.error}'));
-          }
-
-          final allRecipes = snapshot.data ?? [];
-
+      body: recipesAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stack) => Center(child: Text('Fehler: $error')),
+        data: (allRecipes) {
           if (allRecipes.isEmpty) {
             return const Center(child: Text('Noch keine Rezepte vorhanden.'));
           }

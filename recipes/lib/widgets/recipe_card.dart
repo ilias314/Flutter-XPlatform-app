@@ -12,11 +12,7 @@ class RecipeCard extends ConsumerWidget {
   final Recipe recipe;
   final VoidCallback? onTap;
 
- const RecipeCard({
-    super.key, 
-    required this.recipe, 
-    this.onTap,
-  });
+  const RecipeCard({super.key, required this.recipe, this.onTap});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -29,9 +25,11 @@ class RecipeCard extends ConsumerWidget {
         : 'Allgemein';
 
     return GestureDetector(
-      onTap: onTap ?? () { 
-        context.push('/recipes/${recipe.id}');
-      },
+      onTap:
+          onTap ??
+          () {
+            context.push('/recipes/${recipe.id}');
+          },
       child: Card(
         clipBehavior: Clip.antiAlias,
         elevation: 4, // Slightly higher elevation for better look
@@ -74,7 +72,7 @@ class RecipeCard extends ConsumerWidget {
                               .read(favoritesProvider.notifier)
                               .toggleFavorite(recipe);
                         },
-                        child:  Padding(
+                        child: Padding(
                           padding: EdgeInsets.all(6.0),
                           child: Icon(
                             isFav ? Icons.favorite : Icons.favorite_border,
@@ -105,8 +103,8 @@ class RecipeCard extends ConsumerWidget {
                           const SizedBox(width: 4),
                           Text(
                             recipe.avgRating > 0
-                                ? recipe.avgRating.toStringAsFixed(1)
-                                : "Neu",
+                                ? '${recipe.avgRating.toStringAsFixed(1)} '
+                                : 'Neu',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,

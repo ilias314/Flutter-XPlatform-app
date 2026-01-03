@@ -4,6 +4,7 @@ import 'package:recipes/data/einkaufsliste_repository.dart';
 import 'package:recipes/data/recipe_repository.dart';
 import 'package:recipes/models/comment.dart';
 import 'package:recipes/providers/favorites_provider.dart';
+import 'package:recipes/providers/home_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:recipes/models/recipe.dart';
 import 'package:recipes/data/recipe_repository.dart';
@@ -83,35 +84,18 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   Future<Recipe> _fetchRecipe() async {
     final user = Supabase.instance.client.auth.currentUser;
 
-    // holen Sie die Rezeptdetails zusammen mit den Bewertungen
     final response = await Supabase.instance.client
         .from('recipes')
-        .select('''
-        *,
-        ratings(stars)
-      ''')
+        .select()
         .eq('id', widget.recipeId)
         .single();
 
-    // Berechnen Sie die durchschnittliche Bewertung
-    final List ratings = response['ratings'] as List;
-    double average = 0.0;
-    if (ratings.isNotEmpty) {
-      average =
-          ratings.map((r) => r['stars'] as num).reduce((a, b) => a + b) /
-          ratings.length;
-    }
-
     final recipe = Recipe.fromJson(response);
-
-    // Setzen Sie die berechnete durchschnittliche Bewertung
-    recipe.avgRating = average;
 
     _currentPortions = recipe.portions > 0 ? recipe.portions : 1;
     final repo = RecipeRepository(Supabase.instance.client);
     _ingredientsFuture = repo.getRecipeIngredients(recipe.id!);
 
-    // Holen Sie die Bewertung des aktuellen Benutzers, falls vorhanden
     if (user != null) {
       final ratingResponse = await Supabase.instance.client
           .from('ratings')
@@ -166,7 +150,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
         });
 
         _commentController.clear();
-        await _fetchComments(); 
+        await _fetchComments();
         _scrollToComments();
       } catch (e) {
         ScaffoldMessenger.of(
@@ -179,36 +163,52 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   Future<void> _saveUserRating(double rating) async {
     final user = Supabase.instance.client.auth.currentUser;
 
-    if (user != null) {
-      try {
-        
-        await Supabase.instance.client.from('ratings').upsert(
-          {'recipe_id': widget.recipeId, 'user_id': user.id, 'stars': rating},
-          onConflict: 'user_id, recipe_id',
-        ); 
-
-        if (mounted) {
-          setState(() {
-            _recipeFuture = _fetchRecipe();
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Bewertung gespeichert!"),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Fehler beim Speichern der Bewertung: $e")),
-          );
-        }
-      }
-    } else {
+    if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Bitte melden Sie sich an, um zu bewerten."),
+        ),
+      );
+      return;
+    }
+
+    try {
+      await Supabase.instance.client.from('ratings').upsert({
+        'recipe_id': widget.recipeId,
+        'user_id': user.id,
+        'stars': rating,
+      }, onConflict: 'user_id,recipe_id');
+
+      final recipeResponse = await Supabase.instance.client
+          .from('recipes')
+          .select()
+          .eq('id', widget.recipeId)
+          .single();
+
+      final updatedRecipe = Recipe.fromJson(recipeResponse);
+
+      ref.invalidate(allRecipesProvider);
+
+      if (!mounted) return;
+
+      setState(() {
+        _userRating = rating;
+        _recipeFuture = Future.value(updatedRecipe);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Bewertung gespeichert!"),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Fehler beim Speichern der Bewertung: $e"),
+          backgroundColor: Colors.red,
         ),
       );
     }

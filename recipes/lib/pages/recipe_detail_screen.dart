@@ -499,7 +499,6 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
             color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            shadows: [Shadow(color: Colors.black, blurRadius: 10)],
           ),
         ),
         background: r.imageUrl != null

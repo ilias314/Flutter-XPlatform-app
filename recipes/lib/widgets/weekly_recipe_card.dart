@@ -114,7 +114,7 @@ class WochenplanRecipeCard extends StatelessWidget {
                             recipe != null &&
                                     recipe!.avgRating != null &&
                                     recipe!.avgRating! > 0
-                                ? '${recipe!.avgRating!.toStringAsFixed(1)} ' 
+                                ? '${recipe!.avgRating!.toStringAsFixed(1)} '
                                 : 'Neu',
                             style: const TextStyle(fontSize: 12),
                           ),
@@ -138,9 +138,7 @@ class WochenplanRecipeCard extends StatelessWidget {
                           const Icon(Icons.restaurant_menu, size: 13),
                           const SizedBox(width: 4),
                           Text(
-                            recipe != null
-                                ? '${recipe!.categories}'
-                                : 'Allgemein',
+                            recipe?.displayCategory ?? 'Allgemein',
                             style: const TextStyle(fontSize: 12),
                           ),
                         ],

@@ -12,9 +12,9 @@ class Recipe {
   final double sugar;
   final int portions;
   final String description;
-   double avgRating; 
+  double avgRating;
   final DateTime createdAt;
-  
+
   // Changed from single category to list of categories
   final List<String> categories;
 
@@ -46,7 +46,8 @@ class Recipe {
         categoryList = catData
             .map((item) {
               // Handle nested structure from Supabase JOIN
-              if (item['categories'] != null && item['categories']['name'] != null) {
+              if (item['categories'] != null &&
+                  item['categories']['name'] != null) {
                 return item['categories']['name'] as String;
               }
               return null;
@@ -59,7 +60,7 @@ class Recipe {
 
     return Recipe(
       id: json['id'],
-      name: json['name'] ?? 'Unbenannt', 
+      name: json['name'] ?? 'Unbenannt',
       imageUrl: json['image_url'],
       preparationTime: json['preparation_time'] ?? 0,
       difficulty: json['difficulty'] ?? 'Mittel',
@@ -72,10 +73,17 @@ class Recipe {
       portions: json['portions'] ?? 1,
       description: json['description'] ?? '',
       avgRating: (json['avg_rating'] ?? 0).toDouble(),
-      createdAt: json['created_at'] != null 
-          ? DateTime.parse(json['created_at']) 
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'])
           : DateTime.now(),
       categories: categoryList,
     );
+  }
+
+  String get displayCategory {
+    if (categories == null || categories!.isEmpty) {
+      return 'Allgemein';
+    }
+    return categories!.join(', ');
   }
 }

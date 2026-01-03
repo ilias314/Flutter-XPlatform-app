@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:recipes/models/recipe.dart';
+import 'package:recipes/pages/home_screen.dart';
 import 'package:recipes/widgets/ui_utils.dart';
 import 'package:recipes/widgets/weekly_recipe_card.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -230,7 +231,10 @@ class _WochenplanPagesState extends State<WochenplanPages> {
       color: Colors.grey[50],
       child: InkWell(
         onTap: () {
-          showNotImplementedSnackbar(context);
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const StartseitePages()),
+          );
         },
         child: const SizedBox(
           height: 100,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:recipes/models/ingredient.dart';
+import 'package:recipes/models/recipe.dart';
 import 'package:recipes/providers/home_provider.dart';
 import 'package:recipes/widgets/ingredient_input_field.dart';
 import 'package:recipes/widgets/ui_utils.dart';
@@ -18,7 +19,9 @@ import 'package:recipes/models/category.dart';
 enum Difficulty { einfach, mittel, schwer }
 
 class CreateRezeptPages extends ConsumerStatefulWidget {
-  const CreateRezeptPages({super.key});
+  final Recipe? recipeToEdit;
+
+  const CreateRezeptPages({super.key, this.recipeToEdit});
 
   @override
   ConsumerState<CreateRezeptPages> createState() => _CreateRezeptPagesState();
@@ -128,6 +131,25 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
   void initState() {
     super.initState();
     _loadCategories();
+
+    final r = widget.recipeToEdit;
+    if (r != null) {
+      _recipeNameController.text = r.name;
+      _descriptionController.text = r.description;
+      _preparationTimeController.text = r.preparationTime.toString();
+      _portionsController.text = r.portions.toString();
+
+      _caloriesController.text = r.calories.toString();
+      _proteinController.text = r.protein.toString();
+      _carbsController.text = r.carbs.toString();
+      _fatController.text = r.fat.toString();
+      _fiberController.text = r.fiber.toString();
+      _sugarController.text = r.sugar.toString();
+
+      _selectedDifficulty = Difficulty.values.firstWhere(
+        (d) => d.name == r.difficulty,
+      );
+    }
   }
 
   Future<void> _loadCategories() async {
@@ -150,77 +172,99 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
 
   /// Validiert das Formular und speichert die Daten (Placeholder).
   Future<void> _saveRecipe() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
+    if (!_formKey.currentState!.validate()) return;
 
-      try {
-        final supabase = Supabase.instance.client;
-        final userId = supabase.auth.currentUser!.id;
+    setState(() => _isLoading = true);
 
-        // 1. Upload Image First
-        String? uploadedUrl;
-        if (_selectedImage != null) {
-          print("🟡 Starting Upload...");
+    try {
+      final supabase = Supabase.instance.client;
+      final userId = supabase.auth.currentUser!.id;
+      final repo = RecipeRepository(supabase);
 
-          final imageService = ImageUploadService(supabase);
-          uploadedUrl = await imageService.uploadRecipeImage(
-            _selectedImage!,
-            userId,
-          );
+      String? imageUrl = widget.recipeToEdit?.imageUrl;
 
-          print("✅ Upload Result: $uploadedUrl");
-        } else {
-          print("🔴 No image selected!");
-        }
+      if (_selectedImage != null) {
+        final imageService = ImageUploadService(supabase);
 
-        // 2. Save Recipe with the URL
-        final repo = RecipeRepository(supabase);
+        imageUrl = await imageService.uploadRecipeImage(
+          _selectedImage!,
+          userId,
+        );
+      }
 
-        final List<Map<String, dynamic>> ingredientsData = _ingredients
-            .map(
-              (ing) => {
-                'name': ing.name,
-                'quantity': ing.quantity,
-                'unit': ing.unit,
-              },
-            )
-            .toList();
+      final ingredientsData = _ingredients
+          .where((ing) => ing.name.trim().isNotEmpty)
+          .map(
+            (ing) => {
+              'name': ing.name,
+              'quantity': ing.quantity,
+              'unit': ing.unit,
+            },
+          )
+          .toList();
 
+      if (widget.recipeToEdit == null) {
         await repo.createRecipe(
           userId: userId,
-          name: _recipeNameController.text,
-          description: _descriptionController.text,
+          name: _recipeNameController.text.trim(),
+          description: _descriptionController.text.trim(),
           prepTime: int.parse(_preparationTimeController.text),
           portions: int.parse(_portionsController.text),
           difficulty: _selectedDifficulty!.name,
-          imageUrl: uploadedUrl,
+          imageUrl: imageUrl,
           ingredients: ingredientsData,
           categoryIds: _selectedCategoryIds.toList(),
-          calories: double.tryParse(_caloriesController.text) ?? 0.0,
-          protein: double.tryParse(_proteinController.text) ?? 0.0,
-          carbs: double.tryParse(_carbsController.text) ?? 0.0,
-          fat: double.tryParse(_fatController.text) ?? 0.0,
-          fiber: double.tryParse(_fiberController.text) ?? 0.0,
-          sugar: double.tryParse(_sugarController.text) ?? 0.0,
+          calories: double.tryParse(_caloriesController.text) ?? 0,
+          protein: double.tryParse(_proteinController.text) ?? 0,
+          carbs: double.tryParse(_carbsController.text) ?? 0,
+          fat: double.tryParse(_fatController.text) ?? 0,
+          fiber: double.tryParse(_fiberController.text) ?? 0,
+          sugar: double.tryParse(_sugarController.text) ?? 0,
+        );
+      } else {
+        await repo.updateRecipe(
+          recipeId: widget.recipeToEdit!.id!,
+          userId: userId,
+          name: _recipeNameController.text.trim(),
+          description: _descriptionController.text.trim(),
+          prepTime: int.parse(_preparationTimeController.text),
+          portions: int.parse(_portionsController.text),
+          difficulty: _selectedDifficulty!.name,
+          imageUrl: imageUrl,
+          ingredients: ingredientsData,
+          categoryIds: _selectedCategoryIds.toList(),
+          calories: double.tryParse(_caloriesController.text) ?? 0,
+          protein: double.tryParse(_proteinController.text) ?? 0,
+          carbs: double.tryParse(_carbsController.text) ?? 0,
+          fat: double.tryParse(_fatController.text) ?? 0,
+          fiber: double.tryParse(_fiberController.text) ?? 0,
+          sugar: double.tryParse(_sugarController.text) ?? 0,
+        );
+      }
+
+      ref.invalidate(allRecipesProvider);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.recipeToEdit == null
+                  ? 'Rezept erstellt'
+                  : 'Rezept aktualisiert',
+            ),
+          ),
         );
 
-        ref.invalidate(allRecipesProvider);
-
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Gespeichert!')));
-          context.pushReplacement('/');
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error: $e')));
-        }
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
+        context.pushReplacement('/');
       }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

@@ -28,11 +28,10 @@ class RecipeRepository {
               name
             )
           )
-        ''') 
+        ''')
           .eq('user_id', userId)
           .order('created_at', ascending: false);
 
-      
       return (response as List).map((json) => Recipe.fromJson(json)).toList();
     } catch (e) {
       throw Exception('Erreur lors de la récupération de vos recettes : $e');
@@ -230,7 +229,6 @@ class RecipeRepository {
       return List<Map<String, dynamic>>.from(
         response.map(
           (item) => {
-           
             'ingredient_id': item['ingredient_id'],
             'name': item['ingredients']['name'],
             'quantity': (item['quantity'] ?? 0).toDouble(),
@@ -242,5 +240,87 @@ class RecipeRepository {
       print('Error loading ingredients: $e');
       return [];
     }
+  }
+
+  /// Aktualisiert ein bestehendes Rezept (nur eigenes Rezept!)
+  Future<void> updateRecipe({
+    required String recipeId,
+    required String userId,
+    required String name,
+    required String description,
+    required int prepTime,
+    required int portions,
+    required String difficulty,
+    String? imageUrl,
+    required List<Map<String, dynamic>> ingredients,
+    List<String> categoryIds = const [],
+    double calories = 0.0,
+    double protein = 0.0,
+    double carbs = 0.0,
+    double fat = 0.0,
+    double sugar = 0.0,
+    double fiber = 0.0,
+  }) async {
+    await _client
+        .from('recipes')
+        .update({
+          'name': name,
+          'description': description,
+          'preparation_time': prepTime,
+          'portions': portions,
+          'difficulty': difficulty,
+          'image_url': imageUrl,
+          'calories_per_portion': calories,
+          'protein_per_portion': protein,
+          'carbs_per_portion': carbs,
+          'fat_per_portion': fat,
+          'sugar_per_portion': sugar,
+          'fiber_per_portion': fiber,
+        })
+        .eq('id', recipeId)
+        .eq('user_id', userId);
+
+    //  Alte Zutaten löschen
+    await _client.from('recipe_ingredients').delete().eq('recipe_id', recipeId);
+
+    //  Alte Kategorien löschen
+    await _client.from('recipe_categories').delete().eq('recipe_id', recipeId);
+
+    //  Zutaten neu speichern
+    for (final item in ingredients) {
+      if ((item['name'] as String).isEmpty) continue;
+
+      final ingredientId = await _getOrCreateIngredientId(
+        item['name'],
+        item['unit'],
+      );
+
+      await _client.from('recipe_ingredients').insert({
+        'recipe_id': recipeId,
+        'ingredient_id': ingredientId,
+        'quantity': item['quantity'],
+        'unit': item['unit'],
+      });
+    }
+
+    //  Kategorien neu speichern
+    if (categoryIds.isNotEmpty) {
+      await _client
+          .from('recipe_categories')
+          .insert(
+            categoryIds
+                .map((id) => {'recipe_id': recipeId, 'category_id': id})
+                .toList(),
+          );
+    }
+  }
+
+  /// Löscht ein Rezept (nur eigenes Rezept!)
+  Future<void> deleteRecipe(String recipeId, String userId) async {
+    await _client
+        .from('recipes')
+        .delete()
+        .eq('id', recipeId)
+        .eq('user_id', userId);
   }
 }

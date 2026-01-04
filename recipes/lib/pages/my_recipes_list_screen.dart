@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:recipes/models/recipe.dart';
+import 'package:recipes/providers/home_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/recipe_repository.dart';
-import '../widgets/weekly_recipe_card.dart'; 
+import '../widgets/weekly_recipe_card.dart';
 
-class MyRecipesListScreen extends StatefulWidget {
+class MyRecipesListScreen extends ConsumerStatefulWidget  {
   const MyRecipesListScreen({super.key});
 
   @override
-  State<MyRecipesListScreen> createState() => _MyRecipesListScreenState();
+  ConsumerState<MyRecipesListScreen> createState() => _MyRecipesListScreenState();
 }
 
-class _MyRecipesListScreenState extends State<MyRecipesListScreen> {
+class _MyRecipesListScreenState extends ConsumerState<MyRecipesListScreen> {
   late Future<List<Recipe>> _userRecipesFuture;
   final supabase = Supabase.instance.client;
 
@@ -35,10 +37,7 @@ class _MyRecipesListScreenState extends State<MyRecipesListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Meine Rezepte'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Meine Rezepte'), centerTitle: true),
       body: FutureBuilder<List<Recipe>>(
         future: _userRecipesFuture,
         builder: (context, snapshot) {
@@ -64,10 +63,11 @@ class _MyRecipesListScreenState extends State<MyRecipesListScreen> {
             itemBuilder: (context, index) {
               final recipe = recipes[index];
 
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12.0), 
-                child: WochenplanRecipeCard(
-                  recipe: recipe,
+              return GestureDetector(
+                onLongPress: () => _showActions(recipe),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: WochenplanRecipeCard(recipe: recipe),
                 ),
               );
             },
@@ -83,5 +83,90 @@ class _MyRecipesListScreenState extends State<MyRecipesListScreen> {
         child: const Icon(Icons.add, color: Colors.white),
       ),
     );
+  }
+
+  void _showActions(Recipe recipe) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text('Aktion auswählen', textAlign: TextAlign.center),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit),
+                title: const Text('Rezept bearbeiten'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  context.push('/edit-recipe', extra: recipe);
+                },
+              ),
+
+              const Divider(),
+
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text(
+                  'Rezept löschen',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _confirmDelete(recipe);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmDelete(Recipe recipe) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Rezept löschen?'),
+        content: const Text(
+          'Diese Aktion kann nicht rückgängig gemacht werden.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteRecipe(recipe.id!);
+    }
+  }
+
+  Future<void> _deleteRecipe(String recipeId) async {
+    final userId = supabase.auth.currentUser!.id;
+    final repo = RecipeRepository(supabase);
+
+    await repo.deleteRecipe(recipeId, userId);
+    _refreshRecipes();
+
+      ref.invalidate(allRecipesProvider);
+
+
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Rezept gelöscht')));
+    }
   }
 }

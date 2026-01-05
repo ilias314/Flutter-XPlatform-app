@@ -1,10 +1,11 @@
 import 'dart:io';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:recipes/data/auth_repository.dart';
 import 'package:recipes/data/profile_repository.dart';
-import 'package:recipes/widgets/recipe_section.dart';
+import 'package:recipes/main_scaffold.dart';
 
 enum DishPreference { alles, pescetarisch, vegetarisch, vegan }
 
@@ -20,7 +21,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _isLoading = true;
   bool _isDarkMode = false;
 
-  // State Variablen für User-Daten
   String _userName = "UserName";
   String? _avatarUrl;
 
@@ -31,7 +31,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   // --------------------------------------------------------------------------
-  // 1. DATEN LADEN
+  // 1. LOAD DATA
   // --------------------------------------------------------------------------
   Future<void> _loadUserProfile() async {
     if (ref.read(authRepositoryProvider).currentUser == null) return;
@@ -45,14 +45,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         });
       }
 
-      // Hier wird die URL geladen
       if (profileData['avatar_url'] != null) {
         setState(() {
           _avatarUrl = profileData['avatar_url'];
         });
-        print("✅ DEBUG: Avatar URL aus Datenbank geladen: $_avatarUrl");
-      } else {
-        print("ℹ️ DEBUG: Keine Avatar URL in Datenbank.");
       }
 
       if (profileData['dietary_preferences'] != null) {
@@ -103,9 +99,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
-  // --------------------------------------------------------------------------
-  // FUNKTION: Ernährungsweise speichern
-  // --------------------------------------------------------------------------
   Future<void> _updatePreference(DishPreference? newValue) async {
     if (newValue == null || newValue == _currentPreference) return;
 
@@ -137,7 +130,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   // --------------------------------------------------------------------------
-  // FUNKTION: Profilbild ändern (Upload)
+  // PROFILE PICTURE ACTIONS
   // --------------------------------------------------------------------------
   Future<void> _changeProfilePicture() async {
     final picker = ImagePicker();
@@ -160,7 +153,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         setState(() {
           _avatarUrl = newUrl;
         });
-        print("✅ DEBUG: Neues Bild hochgeladen: $newUrl");
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Profilbild aktualisiert!"),
@@ -169,7 +161,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         );
       }
     } catch (e) {
-      print("❌ DEBUG Upload Fehler: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -181,17 +172,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
-  // --------------------------------------------------------------------------
-  // FUNKTION: Profilbild LÖSCHEN
-  // --------------------------------------------------------------------------
   Future<void> _deleteProfilePicture() async {
     try {
-      // Löscht den Eintrag in der DB (setzt avatar_url auf null)
       await ref.read(profileRepositoryProvider).deleteProfileImage();
 
       if (mounted) {
         setState(() {
-          _avatarUrl = null; // Bild sofort aus UI entfernen
+          _avatarUrl = null;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -213,7 +200,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   // --------------------------------------------------------------------------
-  // HAUPT UI
+  // MAIN UI
   // --------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
@@ -225,7 +212,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       appBar: AppBar(
         title: const Text("Profil"),
         centerTitle: false,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            ref.read(bottomNavIndexProvider.notifier).state = 0;
+          },
+        ),
         actions: [
+          // THE SETTINGS BUTTON (Now contains "Edit Profile")
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => _showSettingsSheet(context),
@@ -237,75 +231,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           children: [
             const SizedBox(height: 30),
 
-            // PROFILBILD (Hauptansicht)
+            // 1. PROFILE PICTURE
             Center(
-              child: Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  CircleAvatar(
-                    radius: 60,
-                    // Hier ist deine Original-Logik: Transparent wenn Bild da ist
-                    backgroundColor: _avatarUrl != null
-                        ? Colors.transparent
-                        : Colors.grey,
-                    backgroundImage: _avatarUrl != null
-                        ? NetworkImage(_avatarUrl!)
-                        : null,
-                    child: _avatarUrl == null
-                        ? const Icon(
-                            Icons.person,
-                            size: 80,
-                            color: Colors.white,
-                          )
-                        : null,
-                  ),
-                ],
+              child: CircleAvatar(
+                radius: 60,
+                backgroundColor:
+                    _avatarUrl != null ? Colors.transparent : Colors.grey,
+                backgroundImage:
+                    _avatarUrl != null ? NetworkImage(_avatarUrl!) : null,
+                child: _avatarUrl == null
+                    ? const Icon(Icons.person, size: 80, color: Colors.white)
+                    : null,
               ),
             ),
 
             const SizedBox(height: 10),
 
-            // NAME
+            // 2. NAME
             Text(
               _userName,
               style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w300),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 40),
 
-            // PROFIL BEARBEITEN BUTTON
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40.0),
-              child: SizedBox(
-                height: 48,
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () => _showEditProfileSheet(context),
-                  style: OutlinedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    side: const BorderSide(color: Colors.grey),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Profil bearbeiten",
-                        style: TextStyle(color: Colors.black, fontSize: 16),
-                      ),
-                      SizedBox(width: 8),
-                      Icon(Icons.edit, size: 18, color: Colors.black),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            // ERNÄHRUNGSWEISE
+            // 3. DIETARY PREFERENCE DROPDOWN (Kept as requested)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 40.0),
               child: Column(
@@ -367,10 +317,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ),
 
-            const SizedBox(height: 50),
-            const RecipeSection(title: "Favoriten"),
-            const SizedBox(height: 50),
-            const RecipeSection(title: "Meine Rezepte"),
             const SizedBox(height: 40),
           ],
         ),
@@ -379,7 +325,116 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   // ===========================================================================
-  // MODAL SHEET: PROFIL BEARBEITEN
+  // SETTINGS SHEET (Now includes "Profil bearbeiten")
+  // ===========================================================================
+  void _showSettingsSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.9,
+          ),
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: StatefulBuilder(
+              builder: (BuildContext context, StateSetter setSheetState) {
+                return SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 20,
+                      horizontal: 10,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          "Einstellungen",
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        
+                        // --- NEW: EDIT PROFILE OPTION ---
+                        ListTile(
+                          leading: const Icon(Icons.edit, color: Colors.blue),
+                          title: const Text("Profil bearbeiten"),
+                          onTap: () {
+                            Navigator.pop(context); // Close Settings
+                            _showEditProfileSheet(context); // Open Edit Sheet
+                          },
+                        ),
+                        const Divider(),
+
+                        SwitchListTile(
+                          secondary: Icon(
+                            (_isDarkMode) ? Icons.dark_mode : Icons.light_mode,
+                          ),
+                          title: const Text("Dark Mode"),
+                          value: _isDarkMode,
+                          onChanged: (bool value) {
+                            setSheetState(() => _isDarkMode = value);
+                          },
+                        ),
+                        const Divider(),
+                        
+                        ListTile(
+                          leading: const Icon(Icons.logout),
+                          title: const Text("Abmelden"),
+                          onTap: () async {
+                            Navigator.pop(context);
+                            await ref.read(authRepositoryProvider).signOut();
+                          },
+                        ),
+                        const Divider(),
+                        
+                        ListTile(
+                          leading: const Icon(
+                            Icons.delete_forever,
+                            color: Colors.red,
+                          ),
+                          title: const Text(
+                            "Profil löschen",
+                            style: TextStyle(color: Colors.red),
+                          ),
+                          onTap: () {
+                            Navigator.pop(context);
+                            _showDeleteConfirmationDialog();
+                          },
+                        ),
+                        const SizedBox(height: 30),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ===========================================================================
+  // EDIT PROFILE SHEET (Avatar, Name, Email, Password)
   // ===========================================================================
   void _showEditProfileSheet(BuildContext context) {
     showModalBottomSheet(
@@ -420,7 +475,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   const SizedBox(height: 40),
 
-                  // 1. PROFILBILD MIT CHANGE & DELETE BUTTONS
+                  // 1. AVATAR with CHANGE & DELETE
                   Stack(
                     alignment: Alignment.bottomRight,
                     children: [
@@ -441,7 +496,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             : null,
                       ),
 
-                      // Button: Ändern (Blau, rechts)
+                      // Change Button (Blue)
                       GestureDetector(
                         onTap: () {
                           Navigator.pop(context);
@@ -464,7 +519,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ),
                       ),
 
-                      // Button: Löschen (Rot, links) - NUR ANZEIGEN WENN BILD DA IST
+                      // Delete Button (Red) - Only if image exists
                       if (_avatarUrl != null)
                         Positioned(
                           left: 0,
@@ -495,13 +550,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   const SizedBox(height: 40),
 
-                  // 2. OPTIONEN
+                  // 2. EDIT OPTIONS
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
-                      Icons.person_outline,
-                      color: Colors.black,
-                    ),
+                    leading:
+                        const Icon(Icons.person_outline, color: Colors.black),
                     title: const Text('Benutzernamen ändern'),
                     onTap: () {
                       Navigator.pop(context);
@@ -512,10 +565,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
-                      Icons.email_outlined,
-                      color: Colors.black,
-                    ),
+                    leading:
+                        const Icon(Icons.email_outlined, color: Colors.black),
                     title: const Text('E-Mail ändern'),
                     onTap: () {
                       Navigator.pop(context);
@@ -526,10 +577,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
-                      Icons.lock_outline,
-                      color: Colors.black,
-                    ),
+                    leading:
+                        const Icon(Icons.lock_outline, color: Colors.black),
                     title: const Text('Passwort ändern'),
                     onTap: () {
                       Navigator.pop(context);
@@ -547,7 +596,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   // ===========================================================================
-  // DIALOGE
+  // DIALOGS
   // ===========================================================================
 
   void _showChangeUsernameDialog() {
@@ -615,9 +664,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             const SizedBox(height: 10),
             TextField(
               controller: newEmailController,
-              decoration: const InputDecoration(
-                labelText: "Neue E-Mail Adresse",
-              ),
+              decoration:
+                  const InputDecoration(labelText: "Neue E-Mail Adresse"),
               keyboardType: TextInputType.emailAddress,
             ),
           ],
@@ -787,98 +835,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ],
             );
           },
-        );
-      },
-    );
-  }
-
-  void _showSettingsSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.9,
-          ),
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom,
-            ),
-            child: StatefulBuilder(
-              builder: (BuildContext context, StateSetter setSheetState) {
-                return SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 20,
-                      horizontal: 10,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[300],
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          "Einstellungen",
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        SwitchListTile(
-                          secondary: Icon(
-                            (_isDarkMode) ? Icons.dark_mode : Icons.light_mode,
-                          ),
-                          title: const Text("Dark Mode"),
-                          value: _isDarkMode,
-                          onChanged: (bool value) {
-                            setSheetState(() => _isDarkMode = value);
-                          },
-                        ),
-                        const Divider(),
-                        ListTile(
-                          leading: const Icon(Icons.logout),
-                          title: const Text("Abmelden"),
-                          onTap: () async {
-                            Navigator.pop(context);
-                            await ref.read(authRepositoryProvider).signOut();
-                          },
-                        ),
-                        const Divider(),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.delete_forever,
-                            color: Colors.red,
-                          ),
-                          title: const Text(
-                            "Profil löschen",
-                            style: TextStyle(color: Colors.red),
-                          ),
-                          onTap: () {
-                            Navigator.pop(context);
-                            _showDeleteConfirmationDialog();
-                          },
-                        ),
-                        const SizedBox(height: 30),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
         );
       },
     );

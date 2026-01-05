@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/misc.dart';
 import 'package:recipes/models/ingredient.dart';
 import 'package:recipes/models/recipe.dart';
 import 'package:recipes/providers/home_provider.dart';
-import 'package:recipes/widgets/ingredient_input_field.dart';
 import 'package:recipes/widgets/ui_utils.dart';
 import '../data/recipe_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -14,7 +12,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:recipes/models/category.dart';
-
+import 'package:recipes/main_scaffold.dart';
 // Enum für die Schwierigkeit
 enum Difficulty { einfach, mittel, schwer }
 
@@ -32,6 +30,22 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
   dynamic _selectedImage;
   bool _isLoading = false;
 
+  // Verfügbare Einheiten für das Dropdown
+  final List<String> _unitOptions = [
+    'g',
+    'kg',
+    'ml',
+    'l',
+    'TL',
+    'EL',
+    'Stück',
+    'Prise',
+    'Dose',
+    'Packung',
+    'Bund',
+    'Scheibe(n)',
+  ];
+
   // Formulardaten
   Difficulty? _selectedDifficulty = Difficulty.einfach;
   final List<IngredientInput> _ingredients = [IngredientInput()];
@@ -42,8 +56,7 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
 
   // Controllers für Textfelder
   final TextEditingController _recipeNameController = TextEditingController();
-  final TextEditingController _preparationTimeController =
-      TextEditingController();
+  final TextEditingController _preparationTimeController = TextEditingController();
   final TextEditingController _portionsController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
@@ -62,10 +75,8 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
     if (pickedFile != null) {
       setState(() {
         if (kIsWeb) {
-          // On web, keep it as XFile
           _selectedImage = pickedFile;
         } else {
-          // On mobile, convert to File
           _selectedImage = File(pickedFile.path);
         }
       });
@@ -81,36 +92,32 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
     });
   }
 
-  /// Entfernt eine Zutat aus der Liste. Wird nur nach Bestätigung aufgerufen.
+  /// Entfernt eine Zutat aus der Liste.
   void _removeIngredientField(int index) {
     setState(() {
       _ingredients.removeAt(index);
     });
   }
 
-  /// Zeigt den Bestätigungsdialog an, bevor eine Zutat gelöscht wird.
+  /// Zeigt den Bestätigungsdialog an
   Future<bool?> _showConfirmDeleteDialog(BuildContext context) {
     return showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Datensatz löschen?'),
-          content: const Text(
-            'Sind Sie sicher, dass Sie diesen Eintrag löschen möchten?',
-          ),
+          title: const Text('Zutat entfernen?'),
+          content: const Text('Möchten Sie diese Zutat wirklich entfernen?'),
           actions: <Widget>[
-            // Nein-Button
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
               child: const Text('Nein'),
             ),
-            // Ja-Button (wichtig, um die destruktive Aktion hervorzuheben)
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Ja'),
               style: TextButton.styleFrom(
                 foregroundColor: Theme.of(context).colorScheme.error,
               ),
+              child: const Text('Ja'),
             ),
           ],
         );
@@ -118,10 +125,15 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
     );
   }
 
-  /// Ruft den Bestätigungsdialog auf und löscht die Zutat bei positiver Bestätigung.
   void _handleRemoveIngredient(int index) async {
-    final confirmed = await _showConfirmDeleteDialog(context);
+    // Wenn es die letzte Zutat ist, einfach löschen ohne Dialog (optional, hier mit Dialog für Konsistenz)
+    // Oder direkt löschen, wenn leer.
+    if (_ingredients[index].name.isEmpty && _ingredients[index].quantity == 0) {
+       _removeIngredientField(index);
+       return;
+    }
 
+    final confirmed = await _showConfirmDeleteDialog(context);
     if (confirmed == true) {
       _removeIngredientField(index);
     }
@@ -148,6 +160,7 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
 
       _selectedDifficulty = Difficulty.values.firstWhere(
         (d) => d.name == r.difficulty,
+        orElse: () => Difficulty.einfach,
       );
     }
   }
@@ -168,11 +181,15 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
     }
   }
 
-  // --- Methdode zum Speichern des Rezepts ---
+  // --- Speichern ---
 
-  /// Validiert das Formular und speichert die Daten (Placeholder).
   Future<void> _saveRecipe() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte füllen Sie alle Pflichtfelder korrekt aus.')),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -183,28 +200,33 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
 
       String? imageUrl = widget.recipeToEdit?.imageUrl;
 
+      // 1. Bild hochladen (falls neu ausgewählt)
       if (_selectedImage != null) {
         final imageService = ImageUploadService(supabase);
-
-        imageUrl = await imageService.uploadRecipeImage(
-          _selectedImage!,
-          userId,
-        );
+        imageUrl = await imageService.uploadRecipeImage(_selectedImage!, userId);
       }
 
+      // 2. Zutaten vorbereiten
       final ingredientsData = _ingredients
           .where((ing) => ing.name.trim().isNotEmpty)
-          .map(
-            (ing) => {
-              'name': ing.name,
-              'quantity': ing.quantity,
-              'unit': ing.unit,
-            },
-          )
+          .map((ing) => {
+                'name': ing.name,
+                'quantity': ing.quantity,
+                'unit': ing.unit,
+              })
           .toList();
 
+      if (ingredientsData.isEmpty) {
+        throw Exception("Mindestens eine Zutat wird benötigt.");
+      }
+
+      // Helper für Nährwerte parsing
+      double parseNutrient(TextEditingController c) => double.tryParse(c.text.replaceAll(',', '.')) ?? 0;
+
+      // 3. Speichern (Entscheidung: Neu oder Update)
       if (widget.recipeToEdit == null) {
-        await repo.createRecipe(
+        // --- FALL A: NEUES REZEPT ---
+        final newRecipeId = await repo.createRecipe(
           userId: userId,
           name: _recipeNameController.text.trim(),
           description: _descriptionController.text.trim(),
@@ -214,16 +236,25 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
           imageUrl: imageUrl,
           ingredients: ingredientsData,
           categoryIds: _selectedCategoryIds.toList(),
-          calories: double.tryParse(_caloriesController.text) ?? 0,
-          protein: double.tryParse(_proteinController.text) ?? 0,
-          carbs: double.tryParse(_carbsController.text) ?? 0,
-          fat: double.tryParse(_fatController.text) ?? 0,
-          fiber: double.tryParse(_fiberController.text) ?? 0,
-          sugar: double.tryParse(_sugarController.text) ?? 0,
+          calories: parseNutrient(_caloriesController),
+          protein: parseNutrient(_proteinController),
+          carbs: parseNutrient(_carbsController),
+          fat: parseNutrient(_fatController),
+          fiber: parseNutrient(_fiberController),
+          sugar: parseNutrient(_sugarController),
         );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rezept erstellt!')));
+          // Tab auf Home zurücksetzen
+          ref.read(bottomNavIndexProvider.notifier).state = 0;
+          // Optional: Zum neuen Rezept navigieren
+          // context.push('/recipes/$newRecipeId');
+        }
       } else {
+        // --- FALL B: REZEPT AKTUALISIEREN (Das hat gefehlt!) ---
         await repo.updateRecipe(
-          recipeId: widget.recipeToEdit!.id!,
+          recipeId: widget.recipeToEdit!.id!, // Wichtig: ID übergeben
           userId: userId,
           name: _recipeNameController.text.trim(),
           description: _descriptionController.text.trim(),
@@ -233,35 +264,32 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
           imageUrl: imageUrl,
           ingredients: ingredientsData,
           categoryIds: _selectedCategoryIds.toList(),
-          calories: double.tryParse(_caloriesController.text) ?? 0,
-          protein: double.tryParse(_proteinController.text) ?? 0,
-          carbs: double.tryParse(_carbsController.text) ?? 0,
-          fat: double.tryParse(_fatController.text) ?? 0,
-          fiber: double.tryParse(_fiberController.text) ?? 0,
-          sugar: double.tryParse(_sugarController.text) ?? 0,
+          calories: parseNutrient(_caloriesController),
+          protein: parseNutrient(_proteinController),
+          carbs: parseNutrient(_carbsController),
+          fat: parseNutrient(_fatController),
+          fiber: parseNutrient(_fiberController),
+          sugar: parseNutrient(_sugarController),
         );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rezept aktualisiert!')));
+          // Zurück zur vorherigen Seite (Detail Screen)
+          Navigator.pop(context); 
+        }
       }
 
+      // Cache aktualisieren
       ref.invalidate(allRecipesProvider);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              widget.recipeToEdit == null
-                  ? 'Rezept erstellt'
-                  : 'Rezept aktualisiert',
-            ),
-          ),
-        );
-
-        context.pushReplacement('/');
+      
+      // Fallback Navigation (nur wenn wir noch auf der Seite sind)
+      if(mounted && widget.recipeToEdit == null) {
+         ref.read(bottomNavIndexProvider.notifier).state = 0;
       }
+
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -271,7 +299,21 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Meines Rezept hinzufügen')),
+      appBar: AppBar(
+        title: Text(widget.recipeToEdit == null ? 'Neues Rezept' : 'Rezept bearbeiten'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+          
+            Navigator.of(context).pop();
+            } else {
+            
+            ref.read(bottomNavIndexProvider.notifier).state = 0;
+      }
+          },
+        ),
+      ),
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -290,107 +332,177 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
                   labelText: 'Rezept Name',
                   border: OutlineInputBorder(),
                 ),
-                validator: (value) => (value == null || value.isEmpty)
+                validator: (value) => (value == null || value.trim().isEmpty)
                     ? 'Bitte geben Sie einen Namen ein.'
                     : null,
               ),
               const SizedBox(height: 20),
 
               // 3. Tags/Kategorien
-              const Text(
-                'Tags / Gerichte Typ:',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
+              const Text('Tags / Gerichte Typ:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               _buildTagsSection(context),
               const SizedBox(height: 20),
 
               // 4. Schwierigkeit
-              const Text(
-                'Schwierigkeit:',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
+              const Text('Schwierigkeit:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               _buildDifficultySection(),
               const SizedBox(height: 20),
 
-              // 5. Zubereitungszeit (Rezept Dauer)
-              TextFormField(
-                controller: _preparationTimeController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Zubereitungszeit (Minuten)',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) =>
-                    (value == null || int.tryParse(value) == null)
-                    ? 'Geben Sie eine gültige Dauer an.'
-                    : null,
+              // 5. Zubereitungszeit
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _preparationTimeController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Zeit (Min)',
+                        border: OutlineInputBorder(),
+                        suffixText: 'Min',
+                      ),
+                      validator: (value) => (value == null || int.tryParse(value) == null)
+                          ? 'Ungültig'
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(width: 15),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _portionsController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Portionen',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) => (value == null || int.tryParse(value) == null)
+                          ? 'Ungültig'
+                          : null,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
 
-              // 6. Portionen
-              TextFormField(
-                controller: _portionsController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Portionen',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) =>
-                    (value == null || int.tryParse(value) == null)
-                    ? 'Geben Sie eine gültige Anzahl von Portionen an.'
-                    : null,
+              // Nährwerte (Optional einklappbar, hier offen)
+              ExpansionTile(
+                title: const Text('Nährwerte pro Portion (Optional)', style: TextStyle(fontWeight: FontWeight.bold)),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: Column(
+                      children: [
+                        _buildNutritionInputField(_caloriesController, 'Kalorien (kcal)'),
+                        const SizedBox(height: 10),
+                        _buildNutritionInputField(_proteinController, 'Protein (g)'),
+                        const SizedBox(height: 10),
+                        _buildNutritionInputField(_carbsController, 'Kohlenhydrate (g)'),
+                        const SizedBox(height: 10),
+                        _buildNutritionInputField(_fatController, 'Fett (g)'),
+                        const SizedBox(height: 10),
+                        _buildNutritionInputField(_sugarController, 'Zucker (g)'),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
 
-              const Text(
-                'Nährwerte pro Portion (Gramm/Kalorien):',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-
-              // Kalorien
-              _buildNutritionInputField(_caloriesController, 'Kalorien (kcal)'),
-              const SizedBox(height: 15),
-
-              // Protein
-              _buildNutritionInputField(_proteinController, 'Protein (g)'),
-              const SizedBox(height: 15),
-
-              // Kohlenhydrate (Carbs)
-              _buildNutritionInputField(_carbsController, 'Kohlenhydrate (g)'),
-              const SizedBox(height: 15),
-
-              // Fett (Fat)
-              _buildNutritionInputField(_fatController, 'Fett (g)'),
-              const SizedBox(height: 15),
-
-              // Ballaststoffe (Fiber)
-              _buildNutritionInputField(_fiberController, 'Ballaststoffe (g)'),
-              const SizedBox(height: 15),
-
-              // Zucker (Sugar)
-              _buildNutritionInputField(_sugarController, 'Zucker (g)'),
-              const SizedBox(height: 20),
-
+              // --- ZUTATEN SECTION (Geändert) ---
               const Text(
                 'Zutaten:',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
+              
+              // Liste der Zutaten-Zeilen
               ..._ingredients.asMap().entries.map((entry) {
                 int index = entry.key;
                 IngredientInput item = entry.value;
-                return IngredientInputField(
-                  ingredient: item,
-                  onDelete: () => _handleRemoveIngredient(index),
-                  onQuantityChanged: (val) =>
-                      item.quantity = double.tryParse(val) ?? 0.0,
-                  onUnitChanged: (val) => item.unit = val,
-                  onNameChanged: (val) => item.name = val,
+                
+                // Wir nutzen einen ObjectKey, damit Flutter die Felder beim Löschen/Hinzufügen korrekt zuordnet
+                return Padding(
+                  key: ObjectKey(item), 
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 1. Zutat Name
+                      Expanded(
+                        flex: 3,
+                        child: TextFormField(
+                          initialValue: item.name,
+                          decoration: const InputDecoration(
+                            labelText: 'Zutat',
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+                          ),
+                          onChanged: (val) => item.name = val,
+                          validator: (val) => (val == null || val.trim().isEmpty) ? 'Fehlt' : null,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      
+                      // 2. Menge
+                      Expanded(
+                        flex: 2,
+                        child: TextFormField(
+                          initialValue: item.quantity > 0 ? item.quantity.toString() : '',
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'Menge',
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+                          ),
+                          onChanged: (val) {
+                             // Komma zu Punkt Konvertierung für deutsche Tastaturen
+                             String v = val.replaceAll(',', '.');
+                             item.quantity = double.tryParse(v) ?? 0.0;
+                          },
+                          validator: (val) {
+                            if (val == null || val.isEmpty) return 'Fehlt';
+                            if (double.tryParse(val.replaceAll(',', '.')) == null) return '?';
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // 3. Einheit (Dropdown)
+                      Expanded(
+                        flex: 2,
+                        child: DropdownButtonFormField<String>(
+                          value: _unitOptions.contains(item.unit) ? item.unit : null,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Einheit',
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+                          ),
+                          items: _unitOptions.map((String unit) {
+                            return DropdownMenuItem<String>(
+                              value: unit,
+                              child: Text(unit, style: const TextStyle(fontSize: 14)),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() => item.unit = val);
+                            }
+                          },
+                          validator: (val) => (val == null || val.isEmpty) ? '!' : null,
+                        ),
+                      ),
+                      
+                      // Löschen Button
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.grey),
+                        onPressed: () => _handleRemoveIngredient(index),
+                      ),
+                    ],
+                  ),
                 );
               }).toList(),
 
-              // Boutton für weitere Zutat
               OutlinedButton.icon(
                 onPressed: _addIngredientField,
                 icon: const Icon(Icons.add),
@@ -398,44 +510,42 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
               ),
               const SizedBox(height: 20),
 
-              // ------------------------------------------
-              // 8. Beschreibung / Zubereitung (Wird jetzt 14. Sektion)
-              // ------------------------------------------
+              // Zubereitung
               const Text(
                 'Zubereitung:',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
+              const SizedBox(height: 5),
               TextFormField(
                 controller: _descriptionController,
-                maxLines: 5,
+                maxLines: 8,
                 decoration: const InputDecoration(
-                  hintText: 'Schreiben Sie hier die Zubereitungsanweisungen...',
+                  hintText: 'Schritt 1: Ofen vorheizen...\nSchritt 2: Gemüse schneiden...',
                   border: OutlineInputBorder(),
                 ),
-                validator: (value) => (value == null || value.isEmpty)
-                    ? 'Bitte geben Sie die Zubereitung an.'
+                validator: (value) => (value == null || value.trim().length < 10)
+                    ? 'Bitte beschreiben Sie die Zubereitung (min. 10 Zeichen).'
                     : null,
               ),
               const SizedBox(height: 30),
 
-              // Boutton zum Speichern
+              // Speichern Button
               Center(
                 child: _isLoading
                     ? const CircularProgressIndicator()
-                    : ElevatedButton(
-                        onPressed: _saveRecipe,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 50,
-                            vertical: 15,
+                    : SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _saveRecipe,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          backgroundColor: Theme.of(
-                            context,
-                          ).colorScheme.primary,
-                        ),
-                        child: const Text(
-                          'Rezept speichern',
-                          style: TextStyle(fontSize: 18, color: Colors.white),
+                          child: const Text(
+                            'Rezept speichern',
+                            style: TextStyle(fontSize: 18, color: Colors.white),
+                          ),
                         ),
                       ),
               ),
@@ -449,7 +559,6 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
 
   // --- Widgets Helpers ---
 
-  /// Abschnitt zum Hochladen eines Rezeptbildes
   Widget _buildImageUploadSection(BuildContext context) {
     return InkWell(
       onTap: _pickImage,
@@ -457,63 +566,43 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
         height: 200,
         width: double.infinity,
         decoration: BoxDecoration(
-          color: Colors.grey[200],
-          borderRadius: BorderRadius.circular(8.0),
-          border: Border.all(color: Colors.grey),
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(12.0),
+          border: Border.all(color: Colors.grey.shade300),
         ),
         child: _selectedImage == null
-            ? const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.cloud_upload, size: 40, color: Colors.grey),
-                    Text('Bild hochladen (Tippen)'),
-                  ],
-                ),
-              )
+            ? (_isLoading 
+                ? const Center(child: CircularProgressIndicator()) 
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.add_a_photo, size: 50, color: Colors.grey.shade400),
+                      const SizedBox(height: 10),
+                      Text('Tippen, um Bild hochzuladen', style: TextStyle(color: Colors.grey.shade600)),
+                    ],
+                  ))
             : ClipRRect(
-                borderRadius: BorderRadius.circular(8.0),
+                borderRadius: BorderRadius.circular(12.0),
                 child: kIsWeb
-                    ? Image.network(
-                        // On web, XFile doesn't have a path, use network image from blob
-                        _selectedImage.path,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          // Fallback: try to load bytes directly
-                          return FutureBuilder<Uint8List>(
-                            future: _selectedImage.readAsBytes(),
-                            builder: (context, snapshot) {
-                              if (snapshot.hasData) {
-                                return Image.memory(
-                                  snapshot.data!,
-                                  fit: BoxFit.cover,
-                                );
-                              }
-                              return const Center(
-                                child: CircularProgressIndicator(),
-                              );
-                            },
-                          );
-                        },
-                      )
+                    ? Image.network(_selectedImage.path, fit: BoxFit.cover)
                     : Image.file(_selectedImage as File, fit: BoxFit.cover),
               ),
       ),
     );
   }
 
-  /// Abschnitt für die Auswahl der Schwierigkeitsstufe (Radio Buttons)
   Widget _buildDifficultySection() {
     return Row(
       children: Difficulty.values.map((difficulty) {
         return Expanded(
           child: RadioListTile<Difficulty>(
             title: Text(
-              difficulty.name.substring(0, 1).toUpperCase() +
-                  difficulty.name.substring(1),
+              difficulty.name.substring(0, 1).toUpperCase() + difficulty.name.substring(1),
+              style: const TextStyle(fontSize: 14),
             ),
             value: difficulty,
             groupValue: _selectedDifficulty,
+            contentPadding: EdgeInsets.zero,
             onChanged: (Difficulty? value) {
               setState(() {
                 _selectedDifficulty = value;
@@ -526,25 +615,15 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
     );
   }
 
-  /// Abschnitt für die Tag-Auswahl (Chips)
   Widget _buildTagsSection(BuildContext context) {
-    if (_isCategoriesLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_availableCategories.isEmpty) {
-      return const Text(
-        'Keine Kategorien verfügbar',
-        style: TextStyle(color: Colors.grey),
-      );
-    }
+    if (_isCategoriesLoading) return const LinearProgressIndicator();
+    if (_availableCategories.isEmpty) return const Text('Keine Kategorien verfügbar.');
 
     return Wrap(
       spacing: 8.0,
       runSpacing: 4.0,
       children: _availableCategories.map((category) {
         final isSelected = _selectedCategoryIds.contains(category.id);
-
         return FilterChip(
           label: Text(category.name),
           selected: isSelected,
@@ -564,26 +643,19 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
     );
   }
 
-  //  HELPER WIDGET FÜR NÄHRWERTE
-  Widget _buildNutritionInputField(
-    TextEditingController controller,
-    String labelText,
-  ) {
+  Widget _buildNutritionInputField(TextEditingController controller, String labelText) {
     return TextFormField(
       controller: controller,
-      keyboardType: TextInputType.number,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
       decoration: InputDecoration(
         labelText: labelText,
         border: const OutlineInputBorder(),
         hintText: '0.0',
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
       ),
-      // Optional: Ein Validator, der float-Werte zulässt
       validator: (value) {
-        if (value == null || value.isEmpty)
-          return null; // Leere Werte sind erlaubt
-        if (double.tryParse(value) == null) {
-          return 'Geben Sie eine gültige Zahl an.';
-        }
+        if (value == null || value.isEmpty) return null;
+        if (double.tryParse(value.replaceAll(',', '.')) == null) return 'Ungültig';
         return null;
       },
     );

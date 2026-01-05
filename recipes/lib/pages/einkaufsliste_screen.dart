@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:recipes/main_scaffold.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class EinkaufslisteScreen extends StatefulWidget {
+class EinkaufslisteScreen extends ConsumerStatefulWidget {
   const EinkaufslisteScreen({super.key});
 
   @override
-  State<EinkaufslisteScreen> createState() => _EinkaufslisteScreenState();
+  ConsumerState<EinkaufslisteScreen> createState() => _EinkaufslisteScreenState();
 }
 
-class _EinkaufslisteScreenState extends State<EinkaufslisteScreen> {
+class _EinkaufslisteScreenState extends ConsumerState<EinkaufslisteScreen> {
   final client = Supabase.instance.client;
   List<Map<String, dynamic>> _items = [];
   bool _isLoading = true;
@@ -165,10 +167,17 @@ class _EinkaufslisteScreenState extends State<EinkaufslisteScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        
         title: Text(
           _isSelectionMode
               ? "${_selectedIds.length} ausgewählt"
               : "Einkaufsliste",
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            ref.read(bottomNavIndexProvider.notifier).state = 0;
+          },
         ),
         actions: _isSelectionMode
             ? [

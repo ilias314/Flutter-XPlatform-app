@@ -5,18 +5,20 @@ import 'package:recipes/pages/home_screen.dart';
 import 'package:recipes/widgets/ui_utils.dart';
 import 'package:recipes/widgets/weekly_recipe_card.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:recipes/main_scaffold.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // --- Hilfsdaten / Setup ---
 final List<String> _weekdays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
-class WochenplanPages extends StatefulWidget {
+class WochenplanPages extends ConsumerStatefulWidget {
   const WochenplanPages({super.key});
 
   @override
-  State<WochenplanPages> createState() => _WochenplanPagesState();
+  ConsumerState<WochenplanPages> createState() => _WochenplanPagesState();
 }
 
-class _WochenplanPagesState extends State<WochenplanPages> {
+class _WochenplanPagesState extends ConsumerState<WochenplanPages> {
   // Das Datum, ab dem die Woche angezeigt wird (Montag der aktuellen Woche)
   late DateTime _startDate;
   // Der Index des aktuell ausgewählten Tages (0=Montag, 6=Sonntag)
@@ -78,6 +80,12 @@ class _WochenplanPagesState extends State<WochenplanPages> {
       appBar: AppBar(
         title: const Text('Mein Wochenplan'),
         automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            ref.read(bottomNavIndexProvider.notifier).state = 0;
+          },
+        ),
 
         //  NEUE AKTION: Kalender-Icon
         actions: [

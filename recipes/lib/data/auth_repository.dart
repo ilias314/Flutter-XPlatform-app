@@ -103,14 +103,22 @@ class AuthRepository {
   }
 
   // 4. Account löschen (via SQL Funktion)
+  // 4. Account "Soft Delete" (Mark for deletion in 30 days)
   Future<void> deleteAccount() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+
     try {
-      // Ruft die SQL-Funktion 'delete_user' auf (muss in Supabase angelegt sein)
-      await _supabase.rpc('delete_user');
-      // Lokal ausloggen
+      // 1. Mark the profile for deletion
+      await _supabase.from('profiles').update({
+        'deletion_scheduled_at': DateTime.now().toIso8601String(),
+      }).eq('id', user.id);
+
+      // 2. Sign out immediately so it feels like a deletion to the user
       await _supabase.auth.signOut();
+      
     } catch (e) {
-      throw Exception('Profil konnte nicht gelöscht werden: $e');
+      throw Exception('Fehler beim Löschen des Accounts: $e');
     }
   }
 }

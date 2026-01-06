@@ -56,23 +56,23 @@ class _MyRecipesListScreenState extends ConsumerState<MyRecipesListScreen> {
             );
           }
 
-          // Grid View for "Home-like" cards
           return GridView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: recipes.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 0.75, // Keeps cards vertical and standard size
+            
+            // ✅ FIX: Responsive Grid
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 250, // Keep cards small & clean on Desktop
+              childAspectRatio: 0.75, 
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
             ),
+            
             itemBuilder: (context, index) {
               final recipe = recipes[index];
 
               return GestureDetector(
-                // Keep edit/delete functionality on long press
                 onLongPress: () => _showActions(recipe),
-                // The Card itself handles the tap to navigate
                 child: RecipeCard(recipe: recipe),
               );
             },

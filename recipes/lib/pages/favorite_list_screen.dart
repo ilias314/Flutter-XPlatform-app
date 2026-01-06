@@ -22,13 +22,16 @@ class FavoriteListScreen extends ConsumerWidget {
           : GridView.builder(
               padding: const EdgeInsets.all(16.0),
               itemCount: favoriteRecipes.length,
-              // Grid Layout: 2 Columns, similar to Home Screen
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.75, // Adjusts the height/width ratio
+              
+              // ✅ FIX: Use 'MaxCrossAxisExtent' instead of 'FixedCrossAxisCount'
+              // This automatically adds more columns on Desktop!
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 250, // Maximum width of a card (Mobile size)
+                childAspectRatio: 0.75,
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
               ),
+              
               itemBuilder: (context, index) {
                 final recipe = favoriteRecipes[index];
                 return RecipeCard(recipe: recipe);

@@ -68,52 +68,7 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
         ],
       ),
 
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(
-                color: Colors.orange,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Icon(Icons.restaurant_menu, color: Colors.white, size: 48),
-                  SizedBox(height: 10),
-                  Text(
-                    'RecipeS Menü',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            
-            ListTile(
-              title: const Text('Favoriten'),
-              onTap: () {
-                Navigator.pop(context); 
-                context.push('/favorites');
-                print("Navigiere zu Favoriten");
-              },
-            ),
-
-            ListTile(
-              title: const Text('Meine Rezepte'),
-              onTap: () {
-                Navigator.pop(context);
-                context.push('/my-recipes');
-                print("Navigiere zu Meine Rezepte");
-              },
-            ),
-          ],
-        ),
-      ),
+      
 
       body: recipesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:recipes/widgets/weekly_recipe_card.dart';
+import 'package:recipes/widgets/recipe_card.dart'; 
 import '../providers/favorites_provider.dart';
 
 class FavoriteListScreen extends ConsumerWidget {
@@ -9,7 +8,6 @@ class FavoriteListScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 1. Hol dir die Liste der Favoriten-Rezepte aus dem Provider
     final favoriteRecipes = ref.watch(favoritesProvider);
 
     return Scaffold(
@@ -21,16 +19,19 @@ class FavoriteListScreen extends ConsumerWidget {
           ? const Center(
               child: Text('Noch keine Favoriten gespeichert.'),
             )
-          : ListView.separated(
+          : GridView.builder(
               padding: const EdgeInsets.all(16.0),
               itemCount: favoriteRecipes.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              // Grid Layout: 2 Columns, similar to Home Screen
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 0.75, // Adjusts the height/width ratio
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+              ),
               itemBuilder: (context, index) {
                 final recipe = favoriteRecipes[index];
-                return SizedBox(
-                  height: 130, 
-                  child: WochenplanRecipeCard(recipe: recipe),
-                );
+                return RecipeCard(recipe: recipe);
               },
             ),
     );

@@ -183,12 +183,28 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
 
   // --- Speichern ---
 
-  Future<void> _saveRecipe() async {
+ Future<void> _saveRecipe() async {
+    // 1. Validate Text Fields
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Bitte füllen Sie alle Pflichtfelder korrekt aus.')),
       );
       return;
+    }
+
+    // 2. Validate Image (Mandatory)
+    // We check if a new image is selected OR if there is already an image (edit mode)
+    final hasNewImage = _selectedImage != null;
+    final hasExistingImage = widget.recipeToEdit?.imageUrl != null;
+
+    if (!hasNewImage && !hasExistingImage) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bitte laden Sie ein Bild für das Rezept hoch.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return; // Stop execution here
     }
 
     setState(() => _isLoading = true);
@@ -200,13 +216,13 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
 
       String? imageUrl = widget.recipeToEdit?.imageUrl;
 
-      // 1. Bild hochladen (falls neu ausgewählt)
+      // 3. Upload New Image (if selected)
       if (_selectedImage != null) {
         final imageService = ImageUploadService(supabase);
         imageUrl = await imageService.uploadRecipeImage(_selectedImage!, userId);
       }
 
-      // 2. Zutaten vorbereiten
+      // 4. Prepare Ingredients List
       final ingredientsData = _ingredients
           .where((ing) => ing.name.trim().isNotEmpty)
           .map((ing) => {
@@ -220,12 +236,12 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
         throw Exception("Mindestens eine Zutat wird benötigt.");
       }
 
-      // Helper für Nährwerte parsing
+      // Helper to parse nutrition safely
       double parseNutrient(TextEditingController c) => double.tryParse(c.text.replaceAll(',', '.')) ?? 0;
 
-      // 3. Speichern (Entscheidung: Neu oder Update)
+      // 5. Save Logic (Create vs Update)
       if (widget.recipeToEdit == null) {
-        // --- FALL A: NEUES REZEPT ---
+        // --- CREATE NEW RECIPE ---
         final newRecipeId = await repo.createRecipe(
           userId: userId,
           name: _recipeNameController.text.trim(),
@@ -246,15 +262,16 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rezept erstellt!')));
-          // Tab auf Home zurücksetzen
+          
+          // Switch Tab to Home and go there
           ref.read(bottomNavIndexProvider.notifier).state = 0;
-          // Optional: Zum neuen Rezept navigieren
-          // context.push('/recipes/$newRecipeId');
+          // Note: createRecipe returns a string (ID), but since we are in a TabView, 
+          // switching the tab is the safest navigation.
         }
       } else {
-        // --- FALL B: REZEPT AKTUALISIEREN (Das hat gefehlt!) ---
+        // --- UPDATE EXISTING RECIPE ---
         await repo.updateRecipe(
-          recipeId: widget.recipeToEdit!.id!, // Wichtig: ID übergeben
+          recipeId: widget.recipeToEdit!.id!,
           userId: userId,
           name: _recipeNameController.text.trim(),
           description: _descriptionController.text.trim(),
@@ -274,22 +291,27 @@ class _CreateRezeptPagesState extends ConsumerState<CreateRezeptPages> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rezept aktualisiert!')));
-          // Zurück zur vorherigen Seite (Detail Screen)
+          // Pop back to the Detail Screen
           Navigator.pop(context); 
         }
       }
 
-      // Cache aktualisieren
+      // Refresh the Home Screen list so the new/edited recipe shows up
       ref.invalidate(allRecipesProvider);
       
-      // Fallback Navigation (nur wenn wir noch auf der Seite sind)
+      // Fallback navigation if we are in "Create Mode" and haven't navigated yet
       if(mounted && widget.recipeToEdit == null) {
          ref.read(bottomNavIndexProvider.notifier).state = 0;
       }
 
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Fehler: $e'),
+            backgroundColor: Colors.red,
+          )
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

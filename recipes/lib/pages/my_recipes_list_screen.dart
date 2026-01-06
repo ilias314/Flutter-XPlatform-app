@@ -5,7 +5,7 @@ import 'package:recipes/models/recipe.dart';
 import 'package:recipes/providers/home_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/recipe_repository.dart';
-import '../widgets/weekly_recipe_card.dart';
+import 'package:recipes/widgets/recipe_card.dart'; 
 
 class MyRecipesListScreen extends ConsumerStatefulWidget  {
   const MyRecipesListScreen({super.key});
@@ -56,19 +56,24 @@ class _MyRecipesListScreenState extends ConsumerState<MyRecipesListScreen> {
             );
           }
 
-          // man zeigt die Liste der Rezepte an
-          return ListView.builder(
-            padding: const EdgeInsets.all(12),
+          // Grid View for "Home-like" cards
+          return GridView.builder(
+            padding: const EdgeInsets.all(16),
             itemCount: recipes.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 0.75, // Keeps cards vertical and standard size
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+            ),
             itemBuilder: (context, index) {
               final recipe = recipes[index];
 
               return GestureDetector(
+                // Keep edit/delete functionality on long press
                 onLongPress: () => _showActions(recipe),
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: WochenplanRecipeCard(recipe: recipe),
-                ),
+                // The Card itself handles the tap to navigate
+                child: RecipeCard(recipe: recipe),
               );
             },
           );
@@ -102,7 +107,7 @@ class _MyRecipesListScreenState extends ConsumerState<MyRecipesListScreen> {
                 title: const Text('Rezept bearbeiten'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  context.push('/edit-recipe', extra: recipe);
+                  context.push('/edit-recipe', extra: recipe); 
                 },
               ),
 
@@ -159,14 +164,12 @@ class _MyRecipesListScreenState extends ConsumerState<MyRecipesListScreen> {
 
     await repo.deleteRecipe(recipeId, userId);
     _refreshRecipes();
-
-      ref.invalidate(allRecipesProvider);
-
+    ref.invalidate(allRecipesProvider);
 
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Rezept gelöscht')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Rezept gelöscht')),
+      );
     }
   }
 }

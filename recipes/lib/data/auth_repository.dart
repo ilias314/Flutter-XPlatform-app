@@ -22,6 +22,8 @@ class AuthRepository {
     required String email, 
     required String password,
     required String username, 
+     String dietaryPreference = 'Alles',
+
   }) async {
     try {
       // 1. User erstellen
@@ -37,6 +39,9 @@ class AuthRepository {
           'id': user.id,
           'email': email,
           'display_name': username, // Speichert den Namen in 'display_name'
+          'dietary_preferences': {
+            'preference': dietaryPreference,
+          },
         });
       }
     } catch (e) {

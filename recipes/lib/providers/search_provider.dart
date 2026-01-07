@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/recipe.dart';
 
 final searchRecipesProvider = FutureProvider.family<
-  List<Map<String, dynamic>>,
+  List<Recipe>,
   ({String query, String categoriesKey})
 >((ref, params) async {
+
 
   final supabase = Supabase.instance.client;
 
@@ -48,12 +50,14 @@ final searchRecipesProvider = FutureProvider.family<
   var q = supabase.from('recipes').select('*');
 
   if (params.query.isNotEmpty) {
-    q = q.ilike('name', '${params.query}%');
+    q = q.ilike('name', '%${params.query}%');
   }
 
   if (recipeIds != null) {
     q = q.inFilter('id', recipeIds);
   }
 
-  return await q;
+  final res = await q;
+  return res.map((json) => Recipe.fromJson(json)).toList();
+
 });

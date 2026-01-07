@@ -67,9 +67,7 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
           ),
         ],
       ),
-
       
-
       body: recipesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stack) => Center(child: Text('Fehler: $error')),

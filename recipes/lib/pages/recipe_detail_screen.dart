@@ -11,6 +11,7 @@ import 'package:recipes/data/recipe_repository.dart';
 import 'package:recipes/widgets/ui_utils.dart';
 import 'package:recipes/data/weekly_plan_repository.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:go_router/go_router.dart';
 
 class RecipeDetailScreen extends ConsumerStatefulWidget {
   // We accept the ID string now, not the full object
@@ -473,7 +474,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
         ),
         child: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => context.pop(),
         ),
       ),
       actions: [

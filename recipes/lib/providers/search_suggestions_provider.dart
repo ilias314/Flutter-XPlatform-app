@@ -10,8 +10,26 @@ final searchSuggestionsProvider =
   final data = await supabase
       .from('recipes')
       .select('name')
-      .ilike('name', '$query%')
-      .limit(5);
+      .ilike('name', '%$query%');
 
-  return data.map<String>((row) => row['name'] as String).toList();
+  final q = query.toLowerCase();
+
+  final names = data
+      .map<String>((row) => row['name'] as String)
+      .toList();
+
+  final startsWith = names
+      .where((n) => n.toLowerCase().startsWith(q))
+      .toList()
+    ..sort();
+
+  final contains = names
+      .where((n) =>
+          !n.toLowerCase().startsWith(q) &&
+          n.toLowerCase().contains(q))
+      .toList()
+    ..sort();
+
+  return [...startsWith, ...contains].take(5).toList();
 });
+

@@ -3,11 +3,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../data/auth_repository.dart';
 
+
+enum DishPreference { alles, pescetarisch, vegetarisch, vegan }
+
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
+}
+
+String preferenceToString(DishPreference pref) {
+  switch (pref) {
+    case DishPreference.pescetarisch:
+      return 'Pescetarisch';
+    case DishPreference.vegetarisch:
+      return 'Vegetarisch';
+    case DishPreference.vegan:
+      return 'Vegan';
+    default:
+      return 'Alles';
+  }
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
@@ -73,6 +89,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         // ------------------------------------------
         bool isRegLoading = false;
         bool isRegPasswordVisible = false;
+        DishPreference selectedPreference = DishPreference.alles;
 
         // StatefulBuilder ermöglicht setState INNERHALB des Pop-ups
         return StatefulBuilder(
@@ -90,7 +107,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     .signUp(
                       email: regEmailController.text.trim(),
                       password: regPasswordController.text.trim(),
-                      username: regUsernameController.text.trim(), // Falls dein Backend das unterstützt
+                      username: regUsernameController.text.trim(), 
                     );
 
                 if (context.mounted) {
@@ -183,6 +200,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         validator: (value) =>
                             value!.length < 6 ? 'Min. 6 Zeichen' : null,
                       ),
+                      const SizedBox(height: 16),
+
+                      DropdownButtonFormField<DishPreference>(
+                        value: selectedPreference,
+                        decoration: const InputDecoration(
+                          labelText: 'Ernährungsweise',
+                          prefixIcon: Icon(Icons.eco),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: DishPreference.alles,
+                            child: Text('Alles'),
+                          ),
+                          DropdownMenuItem(
+                            value: DishPreference.pescetarisch,
+                            child: Text('Pescetarisch'),
+                          ),
+                          DropdownMenuItem(
+                            value: DishPreference.vegetarisch,
+                            child: Text('Vegetarisch'),
+                          ),
+                          DropdownMenuItem(
+                            value: DishPreference.vegan,
+                            child: Text('Vegan'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          setDialogState(() {
+                            selectedPreference = value!;
+                          });
+                        },
+                      ),
+
                     ],
                   ),
                 ),

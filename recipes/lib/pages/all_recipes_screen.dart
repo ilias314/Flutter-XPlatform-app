@@ -22,49 +22,26 @@ class AllRecipesScreen extends ConsumerWidget {
         data: (allRecipes) {
           final filtered = _applyFilter(allRecipes, args);
 
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
+          if (filtered.isEmpty) {
+            return const Center(
+              child: Text(
+                'Keine Rezepte gefunden',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+            );
+          }
 
-              if (width < 600) {
-                return ListView.builder(
-                  itemCount: filtered.length,
-                  itemBuilder: (context, index) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: SizedBox(
-                        height: 260,
-                        child: RecipeCard(recipe: filtered[index]),
-                      ),
-                    );
-                  },
-                );
-              }
-              int crossAxisCount;
-              if (width < 900) {
-                crossAxisCount = 2;
-              } else if (width < 1200) {
-                crossAxisCount = 3;
-              } else {
-                crossAxisCount = 4;
-              }
-
-              return GridView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: filtered.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: 3 / 4,
-                ),
-                itemBuilder: (context, index) {
-                  return RecipeCard(recipe: filtered[index]);
-                },
-              );
+          return GridView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: filtered.length,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 250,
+              childAspectRatio: 0.75,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+            ),
+            itemBuilder: (context, index) {
+              return RecipeCard(recipe: filtered[index]);
             },
           );
         },

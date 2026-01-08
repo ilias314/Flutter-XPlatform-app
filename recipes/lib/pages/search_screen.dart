@@ -8,6 +8,7 @@ import '../models/category.dart';
 import '../providers/home_provider.dart';
 import '../models/recipe.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../providers/favorites_provider.dart';
 
 enum SortMode {
   none,
@@ -471,13 +472,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 }
 
-class _RecipeCard extends StatelessWidget {
+class _RecipeCard extends ConsumerWidget {
   final Recipe recipe;
 
   const _RecipeCard({required this.recipe});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final favIds = ref.watch(favoritesProvider);
+    final isFav = recipe.id != null && favIds.contains(recipe.id);
+
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () {
@@ -503,12 +507,31 @@ class _RecipeCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      recipe.name,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            recipe.name,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            isFav ? Icons.favorite : Icons.favorite_border,
+                            color: isFav ? Colors.red : Colors.grey,
+                          ),
+                          onPressed: () {
+                            final id = recipe.id;
+                            if (id == null) return;
+                            ref
+                                .read(favoritesProvider.notifier)
+                                .toggleFavorite(id);
+                          },
+                        ),
+                      ],
                     ),
                     Row(
                       children: [

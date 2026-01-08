@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:recipes/widgets/ui_utils.dart';
-import 'package:recipes/widgets/recipe_card.dart'; // Ensure this matches your file name exactly
+import 'package:recipes/widgets/recipe_card.dart'; 
 
 class RecipeSection extends StatelessWidget {
   final String title;
@@ -46,7 +46,6 @@ class RecipeSection extends StatelessWidget {
                 mainAxisSpacing: 10,
               ),
               itemBuilder: (context, index) {
-                // This now works because RecipeCardPlaceholder is defined in recipe_card.dart
                 return const RecipeCardPlaceholder();
               },
             ),

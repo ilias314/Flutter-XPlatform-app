@@ -3,11 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:recipes/models/recipe.dart';
 import 'package:recipes/providers/favorites_provider.dart';
-import 'package:recipes/widgets/ui_utils.dart'; 
+import 'package:recipes/widgets/ui_utils.dart';
 
-// ------------------------------------------------------
-// 1. The Real Recipe Card (Used in Home Screen)
-// ------------------------------------------------------
 class RecipeCard extends ConsumerWidget {
   final Recipe recipe;
   final VoidCallback? onTap;
@@ -16,49 +13,41 @@ class RecipeCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isFav = ref.watch(favoritesProvider).any((fav) => fav.id == recipe.id);
-    
+    final isFav = ref.watch(favoritesProvider).contains(recipe.id);
+
     final String categoryText = recipe.categories.isNotEmpty
         ? recipe.categories.first
         : 'Allgemein';
 
     return GestureDetector(
-      onTap: onTap ??
+      onTap:
+          onTap ??
           () {
             context.push('/recipes/${recipe.id}');
           },
       child: Card(
         clipBehavior: Clip.antiAlias,
-        elevation: 4, 
-        surfaceTintColor: Colors.white, 
-        // -----------------------------------------------------------
-        // UPDATED SHAPE: Golden Border
-        // -----------------------------------------------------------
+        elevation: 4,
+        surfaceTintColor: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(
-            color: Colors.amber, // Golden color
-            width: 1.2, // Slightly thicker to make the gold pop
-          ),
+          side: const BorderSide(color: Colors.amber, width: 1.2),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- TOP AREA: IMAGE + FAVORITE BUTTON ---
             Expanded(
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // 1. Image
                   recipe.imageUrl != null && recipe.imageUrl!.isNotEmpty
                       ? Image.network(
                           recipe.imageUrl!,
                           fit: BoxFit.cover,
-                          errorBuilder: (ctx, _, __) => _buildPlaceholderImage(),
+                          errorBuilder: (ctx, _, __) =>
+                              _buildPlaceholderImage(),
                         )
                       : _buildPlaceholderImage(),
-
-                  // 2. Favorite Button (Top Right)
                   Positioned(
                     top: 8,
                     right: 8,
@@ -68,7 +57,9 @@ class RecipeCard extends ConsumerWidget {
                       child: InkWell(
                         customBorder: const CircleBorder(),
                         onTap: () {
-                          ref.read(favoritesProvider.notifier).toggleFavorite(recipe);
+                          ref
+                              .read(favoritesProvider.notifier)
+                              .toggleFavorite(recipe.id!);
                         },
                         child: Padding(
                           padding: const EdgeInsets.all(6.0),
@@ -82,17 +73,21 @@ class RecipeCard extends ConsumerWidget {
                     ),
                   ),
 
-                  // 3. Rating Badge (Bottom Left of Image)
                   Positioned(
                     bottom: 8,
                     left: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.black.withOpacity(0.7),
                         borderRadius: BorderRadius.circular(12),
-                        // Optional: Add a subtle gold border to the badge too?
-                        border: Border.all(color: Colors.amber.withOpacity(0.5), width: 1), 
+                        border: Border.all(
+                          color: Colors.amber.withOpacity(0.5),
+                          width: 1,
+                        ),
                       ),
                       child: Row(
                         children: [
@@ -116,13 +111,11 @@ class RecipeCard extends ConsumerWidget {
               ),
             ),
 
-            // --- BOTTOM AREA: DETAILS ---
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 1. Title
                   Text(
                     recipe.name,
                     maxLines: 1,
@@ -134,7 +127,6 @@ class RecipeCard extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
 
-                  // 2. Info Row: Time & Difficulty
                   Row(
                     children: [
                       _buildIconText(
@@ -148,7 +140,6 @@ class RecipeCard extends ConsumerWidget {
 
                   const SizedBox(height: 6),
 
-                  // 3. Info Row: Category
                   Row(
                     children: [
                       _buildIconText(
@@ -167,7 +158,11 @@ class RecipeCard extends ConsumerWidget {
     );
   }
 
-  Widget _buildIconText(IconData icon, String text, {Color color = Colors.grey}) {
+  Widget _buildIconText(
+    IconData icon,
+    String text, {
+    Color color = Colors.grey,
+  }) {
     return Row(
       children: [
         Icon(icon, size: 14, color: color),

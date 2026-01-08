@@ -2,13 +2,15 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/recipe.dart';
 
-final favoritesProvider = StateNotifierProvider<FavoritesNotifier, List<Recipe>>((ref) {
-  return FavoritesNotifier();
-});
+final favoritesProvider = StateNotifierProvider<FavoritesNotifier, Set<String>>(
+  (ref) {
+    return FavoritesNotifier();
+  },
+);
 
-class FavoritesNotifier extends StateNotifier<List<Recipe>> {
-  FavoritesNotifier() : super([]) {
-    _loadFavorites(); 
+class FavoritesNotifier extends StateNotifier<Set<String>> {
+  FavoritesNotifier() : super({}) {
+    _loadFavorites();
   }
 
   final _supabase = Supabase.instance.client;
@@ -17,48 +19,35 @@ class FavoritesNotifier extends StateNotifier<List<Recipe>> {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
-    try {
-      final data = await _supabase
-          .from('favourites')
-          .select('recipes (*)') 
-          .eq('user_id', user.id);
+    final data = await _supabase
+        .from('favourites')
+        .select('recipe_id')
+        .eq('user_id', user.id);
 
-      // verwandeln der Daten in eine Liste von Recipe-Objekten
-      final List<Recipe> loadedRecipes = (data as List).map((fav) {
-        return Recipe.fromJson(fav['recipes']);
-      }).toList();
-
-      state = loadedRecipes;
-    } catch (e) {
-      print('Fehler beim Laden der Favoriten: $e');
-    }
+    state = {for (final row in data) row['recipe_id'] as String};
   }
 
-  Future<void> toggleFavorite(Recipe recipe) async {
+  Future<void> toggleFavorite(String recipeId) async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
-    final isExist = state.any((r) => r.id == recipe.id);
+    final isFav = state.contains(recipeId);
 
-    try {
-      if (isExist) {
-        await _supabase
-            .from('favourites')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('recipe_id', recipe.id as Object);
-        
-        state = state.where((r) => r.id != recipe.id).toList();
-      } else {
-        await _supabase.from('favourites').insert({
-          'user_id': user.id,
-          'recipe_id': recipe.id,
-        });
+    if (isFav) {
+      await _supabase
+          .from('favourites')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('recipe_id', recipeId);
 
-        state = [...state, recipe];
-      }
-    } catch (e) {
-      print('Fehler beim Ändern des Favoriten: $e');
+      state = {...state}..remove(recipeId);
+    } else {
+      await _supabase.from('favourites').insert({
+        'user_id': user.id,
+        'recipe_id': recipeId,
+      });
+
+      state = {...state, recipeId};
     }
   }
 }

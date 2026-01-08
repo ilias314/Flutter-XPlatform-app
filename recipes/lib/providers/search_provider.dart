@@ -2,62 +2,60 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/recipe.dart';
 
-final searchRecipesProvider = FutureProvider.family<
-  List<Recipe>,
-  ({String query, String categoriesKey})
->((ref, params) async {
+final searchRecipesProvider =
+    FutureProvider.family<List<Recipe>, ({String query, String categoriesKey})>(
+      (ref, params) async {
+        final supabase = Supabase.instance.client;
 
+        final categories = params.categoriesKey.isEmpty
+            ? <String>[]
+            : params.categoriesKey.split(',');
 
-  final supabase = Supabase.instance.client;
+        if (params.query.isEmpty && categories.isEmpty) {
+          return [];
+        }
 
-  final categories = params.categoriesKey.isEmpty
-      ? <String>[]
-      : params.categoriesKey.split(',');
+        List<String>? recipeIds;
 
-  if (params.query.isEmpty && categories.isEmpty) {
-    return [];
-  }
+        if (categories.isNotEmpty) {
+          final res = await supabase
+              .from('recipe_categories')
+              .select('recipe_id, category_id')
+              .inFilter('category_id', categories);
 
-  List<String>? recipeIds;
+          final Map<String, Set<String>> recipeCategoryMap = {};
 
-  if (categories.isNotEmpty) {
-    final res = await supabase
-        .from('recipe_categories')
-        .select('recipe_id, category_id')
-        .inFilter('category_id', categories);
+          for (final row in res) {
+            final recipeId = row['recipe_id'] as String;
+            final categoryId = row['category_id'] as String;
 
-    final Map<String, Set<String>> recipeCategoryMap = {};
+            recipeCategoryMap.putIfAbsent(recipeId, () => <String>{});
+            recipeCategoryMap[recipeId]!.add(categoryId);
+          }
 
-    for (final row in res) {
-      final recipeId = row['recipe_id'] as String;
-      final categoryId = row['category_id'] as String;
+          recipeIds = recipeCategoryMap.entries
+              .where(
+                (entry) => categories.every((cat) => entry.value.contains(cat)),
+              )
+              .map((entry) => entry.key)
+              .toList();
 
-      recipeCategoryMap.putIfAbsent(recipeId, () => <String>{});
-      recipeCategoryMap[recipeId]!.add(categoryId);
-    }
+          if (recipeIds.isEmpty) {
+            return [];
+          }
+        }
 
-    recipeIds = recipeCategoryMap.entries
-        .where((entry) =>
-            categories.every((cat) => entry.value.contains(cat)))
-        .map((entry) => entry.key)
-        .toList();
+        var q = supabase.from('recipes').select('*');
 
-    if (recipeIds.isEmpty) {
-      return [];
-    }
-  }
+        if (params.query.isNotEmpty) {
+          q = q.ilike('name', '%${params.query}%');
+        }
 
-  var q = supabase.from('recipes').select('*');
+        if (recipeIds != null) {
+          q = q.inFilter('id', recipeIds);
+        }
 
-  if (params.query.isNotEmpty) {
-    q = q.ilike('name', '%${params.query}%');
-  }
-
-  if (recipeIds != null) {
-    q = q.inFilter('id', recipeIds);
-  }
-
-  final res = await q;
-  return res.map((json) => Recipe.fromJson(json)).toList();
-
-});
+        final res = await q;
+        return res.map((json) => Recipe.fromJson(json)).toList();
+      },
+    );

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Funktion zum Anzeigen eines Snackbars mit einer "Noch nicht implementiert"-Nachricht.
 void showNotImplementedSnackbar(BuildContext context) {
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(
@@ -10,12 +9,6 @@ void showNotImplementedSnackbar(BuildContext context) {
   );
 }
 
-/// Helferfunktion zum Simulieren der Navigation zwischen Seiten, die noch nicht existieren.
 void navigateToPlaceholderPage(BuildContext context, String pageName) {
-  // Hier zeigen wir die Nachricht an, aber in der echten Anwendung würden wir zur Seite navigieren.
   showNotImplementedSnackbar(context);
-  // Beispiel für zukünftige Navigation:
-  // if (pageName == 'Profil') {
-  //   Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilPages()));
-  // }
 }

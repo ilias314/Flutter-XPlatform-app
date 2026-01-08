@@ -1,19 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:recipes/pages/recipe_detail_screen.dart';
 import 'package:recipes/widgets/ui_utils.dart';
-import '../models/recipe.dart'; // <--- 1. WICHTIG: Importiere das Model
+import '../models/recipe.dart';
 
 class WochenplanRecipeCard extends StatelessWidget {
-  // -------------------------------------------------------
-  // 2. HIER IST DIE DEFINITION, DIE DIR GEFEHLT HAT:
-  // -------------------------------------------------------
   final Recipe? recipe;
 
-  const WochenplanRecipeCard({
-    super.key,
-    this.recipe, // <--- Das macht den Parameter 'recipe' verfügbar
-  });
-  // -------------------------------------------------------
+  const WochenplanRecipeCard({super.key, this.recipe});
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +29,6 @@ class WochenplanRecipeCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              // --- Linke Seite: Bild ---
               Container(
                 width: 140,
                 height: 100,
@@ -44,7 +36,6 @@ class WochenplanRecipeCard extends StatelessWidget {
                   border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(4.0),
                   color: Colors.grey.shade100,
-                  // Bild laden, falls vorhanden
                   image:
                       (recipe != null &&
                           recipe!.imageUrl != null &&
@@ -55,7 +46,6 @@ class WochenplanRecipeCard extends StatelessWidget {
                         )
                       : null,
                 ),
-                // Platzhalter-Icon, falls kein Bild
                 child:
                     (recipe == null ||
                         recipe!.imageUrl == null ||
@@ -72,7 +62,6 @@ class WochenplanRecipeCard extends StatelessWidget {
 
               const SizedBox(width: 10.0),
 
-              // --- Rechte Seite: Text ---
               Expanded(
                 child: SizedBox(
                   height: 100,
@@ -80,13 +69,11 @@ class WochenplanRecipeCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: <Widget>[
-                      // A. Name & Herz
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
                             child: Text(
-                              // ACHTUNG: Hier nutzen wir 'name' passend zu deinem Model
                               recipe?.name ?? 'Name des Rezepts',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
@@ -106,7 +93,6 @@ class WochenplanRecipeCard extends StatelessWidget {
                         ],
                       ),
 
-                      // B. Bewertung 
                       Row(
                         children: [
                           const Icon(Icons.star, color: Colors.amber, size: 15),
@@ -121,7 +107,6 @@ class WochenplanRecipeCard extends StatelessWidget {
                         ],
                       ),
 
-                      // C. Zeit (Echte Daten aus Model)
                       Row(
                         children: [
                           const Icon(Icons.timer, size: 13),

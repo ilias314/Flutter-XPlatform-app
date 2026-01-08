@@ -8,7 +8,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:recipes/main_scaffold.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// --- Hilfsdaten / Setup ---
 final List<String> _weekdays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
 class WochenplanPages extends ConsumerStatefulWidget {
@@ -19,9 +18,7 @@ class WochenplanPages extends ConsumerStatefulWidget {
 }
 
 class _WochenplanPagesState extends ConsumerState<WochenplanPages> {
-  // Das Datum, ab dem die Woche angezeigt wird (Montag der aktuellen Woche)
   late DateTime _startDate;
-  // Der Index des aktuell ausgewählten Tages (0=Montag, 6=Sonntag)
   int _selectedDayIndex = 0;
 
   final ScrollController _scrollController = ScrollController();
@@ -29,50 +26,38 @@ class _WochenplanPagesState extends ConsumerState<WochenplanPages> {
   @override
   void initState() {
     super.initState();
-    // Setze das Startdatum auf den Montag der aktuellen Woche
     _startDate = _findStartOfWeek(DateTime.now());
   }
 
-  /// Findet den Montag (oder den ersten Tag) der Woche, zu der das gegebene Datum gehört.
   DateTime _findStartOfWeek(DateTime date) {
-    // 1 = Montag, ..., 7 = Sonntag
     int daysToSubtract = date.weekday - 1;
     return date.subtract(Duration(days: daysToSubtract));
   }
 
-  /// Setzt das Startdatum der Wochenansicht auf den Montag der vom Nutzer gewählten Woche.
   void _jumpToSelectedWeek(DateTime selectedDate) {
     setState(() {
       _startDate = _findStartOfWeek(selectedDate);
-      // Optional: Setze den ausgewählten Tag auf den Tag, den der Nutzer geklickt hat.
       _selectedDayIndex = selectedDate.weekday - 1;
     });
-    // Setze den ScrollView zurück auf den Anfang der Woche (optional, aber hilfreich)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollController.jumpTo(0);
     });
   }
 
-  //  NEUE FUNKTION: Zeigt den DatePicker als Popup an
   Future<void> _showCalendarPopup(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _startDate.add(
-        Duration(days: _selectedDayIndex),
-      ), // Aktuell angezeigter Tag
-      firstDate: DateTime(2000), // Frühestes Datum im Kalender
-      lastDate: DateTime(2101), // Spätestes Datum im Kalender
-      locale: const Locale('de', 'DE'), // Setze die deutsche Lokalisierung
-      helpText: 'Woche auswählen', // Titel des Dialogs
+      initialDate: _startDate.add(Duration(days: _selectedDayIndex)),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2101),
+      locale: const Locale('de', 'DE'),
+      helpText: 'Woche auswählen',
     );
 
-    // Wenn der Nutzer ein Datum auswählt, springe zu dieser Woche
     if (picked != null) {
       _jumpToSelectedWeek(picked);
     }
   }
-
-  // --- Widget Builder Methoden ---
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +72,6 @@ class _WochenplanPagesState extends ConsumerState<WochenplanPages> {
           },
         ),
 
-        //  NEUE AKTION: Kalender-Icon
         actions: [
           IconButton(
             icon: const Icon(Icons.calendar_month),
@@ -99,20 +83,16 @@ class _WochenplanPagesState extends ConsumerState<WochenplanPages> {
       ),
       body: Column(
         children: <Widget>[
-          // 1. Kopfzeile mit Wochentagen und Daten (Jetzt scrollbar)
           _buildScrollableWeekdayHeader(context),
 
-          // 2. Trennlinie
           const Divider(height: 1, thickness: 1),
 
-          // 3. Rezeptliste für den ausgewählten Tag
           Expanded(child: _buildRecipeList(context)),
         ],
       ),
     );
   }
 
-  /// Erstellt die horizontal scrollbare Kopfzeile mit den Wochentagen.
   Widget _buildScrollableWeekdayHeader(BuildContext context) {
     final List<DateTime> weekDates = List.generate(7, (index) {
       return _startDate.add(Duration(days: index));
@@ -141,7 +121,6 @@ class _WochenplanPagesState extends ConsumerState<WochenplanPages> {
                 margin: const EdgeInsets.symmetric(horizontal: 2),
                 child: Column(
                   children: [
-                    // Wochentag (Mo, Di, Mi, ...)
                     Text(
                       _weekdays[index],
                       style: TextStyle(
@@ -152,7 +131,6 @@ class _WochenplanPagesState extends ConsumerState<WochenplanPages> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    // Kalendertag (Aktuelle Zahl)
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
@@ -188,7 +166,6 @@ class _WochenplanPagesState extends ConsumerState<WochenplanPages> {
     );
   }
 
-  /// Erstellt die Liste der geplanten Rezepte für den ausgewählten Tag.
   Widget _buildRecipeList(BuildContext context) {
     final DateTime selectedDate = _startDate.add(
       Duration(days: _selectedDayIndex),
@@ -232,7 +209,6 @@ class _WochenplanPagesState extends ConsumerState<WochenplanPages> {
     );
   }
 
-  /// Erstellt eine leere Karte, um ein Rezept hinzuzufügen.
   Widget _buildEmptyRecipeSlot(BuildContext context) {
     return Card(
       elevation: 1.0,

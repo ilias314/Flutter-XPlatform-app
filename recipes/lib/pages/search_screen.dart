@@ -7,7 +7,7 @@ import '../providers/categories_provider.dart';
 import '../models/category.dart';
 import '../providers/home_provider.dart';
 import '../models/recipe.dart';
-
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 enum SortMode {
   none,
@@ -18,8 +18,9 @@ enum SortMode {
   ratingDesc,
   ratingAsc,
   prepTimeAsc,
-  prepTimeDesc
+  prepTimeDesc,
 }
+
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
 
@@ -27,42 +28,103 @@ class SearchScreen extends ConsumerStatefulWidget {
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
-
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final TextEditingController _controller = TextEditingController();
-  String _query = "";
   bool _showSuggestions = true;
   bool _showFilters = false;
   Set<String> _selectedCategoryIds = {};
   SortMode _sortMode = SortMode.none;
   String _submittedQuery = "";
 
-  void _submitSearch() {
-    setState(() {
-      _submittedQuery = _query.trim();
-      _showSuggestions = false;
-    });
+  Future<List<Recipe>> _fetchRecipesRealtime() async {
+    final supabase = Supabase.instance.client;
+
+    final bool hasSearch = _submittedQuery.isNotEmpty;
+    final bool hasCategories = _selectedCategoryIds.isNotEmpty;
+    final bool hasSort = _sortMode != SortMode.none;
+
+    if (!hasSearch && !hasCategories && !hasSort) {
+      return [];
+    }
+
+    List<String>? recipeIds;
+
+    if (hasCategories) {
+      final res = await supabase
+          .from('recipe_categories')
+          .select('recipe_id, category_id')
+          .inFilter('category_id', _selectedCategoryIds.toList());
+
+      final Map<String, Set<String>> map = {};
+
+      for (final row in res) {
+        final r = row['recipe_id'] as String;
+        final c = row['category_id'] as String;
+        map.putIfAbsent(r, () => {}).add(c);
+      }
+
+      recipeIds = map.entries
+          .where((e) => _selectedCategoryIds.every((c) => e.value.contains(c)))
+          .map((e) => e.key)
+          .toList();
+
+      if (recipeIds.isEmpty) return [];
+    }
+
+    var q = supabase.from('recipes').select('*');
+
+    if (hasSearch) {
+      q = q.ilike('name', '%$_submittedQuery%');
+    }
+
+    if (recipeIds != null) {
+      q = q.inFilter('id', recipeIds);
+    }
+
+    final res = await q;
+    return res.map((e) => Recipe.fromJson(e)).toList();
   }
 
+  List<Recipe> _applySorting(List<Recipe> recipes) {
+    final list = List<Recipe>.from(recipes);
+
+    switch (_sortMode) {
+      case SortMode.alphabeticalAsc:
+        list.sort((a, b) => a.name.compareTo(b.name));
+        break;
+      case SortMode.alphabeticalDesc:
+        list.sort((a, b) => b.name.compareTo(a.name));
+        break;
+      case SortMode.newestFirst:
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        break;
+      case SortMode.oldestFirst:
+        list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        break;
+      case SortMode.ratingDesc:
+        list.sort((a, b) => b.avgRating.compareTo(a.avgRating));
+        break;
+      case SortMode.ratingAsc:
+        list.sort((a, b) => a.avgRating.compareTo(b.avgRating));
+        break;
+      case SortMode.prepTimeAsc:
+        list.sort((a, b) => a.preparationTime.compareTo(b.preparationTime));
+        break;
+      case SortMode.prepTimeDesc:
+        list.sort((a, b) => b.preparationTime.compareTo(a.preparationTime));
+        break;
+      case SortMode.none:
+        break;
+    }
+
+    return list;
+  }
 
   @override
   Widget build(BuildContext context) {
     final categoriesAsync = ref.watch(categoriesProvider);
-    final bool useAllRecipes =
-    _sortMode != SortMode.none &&
-    _query.isEmpty &&
-    _selectedCategoryIds.isEmpty;
 
-final recipesAsync = useAllRecipes
-    ? ref.watch(allRecipesProvider)
-    : ref.watch(
-        searchRecipesProvider((
-          query: _submittedQuery,
-          categoriesKey: (_selectedCategoryIds.toList()..sort()).join(','),
-        )),
-      );
-
-    void _openCategoryDialog(AsyncValue<List<RecipeCategory>> categoriesAsync) {
+    void openCategoryDialog(AsyncValue<List<RecipeCategory>> categoriesAsync) {
       final initialSelected = Set<String>.from(_selectedCategoryIds);
 
       showDialog(
@@ -126,6 +188,7 @@ final recipesAsync = useAllRecipes
         },
       );
     }
+
     void openSortDialog() {
       final initialSort = _sortMode;
 
@@ -240,8 +303,7 @@ final recipesAsync = useAllRecipes
       );
     }
 
-
-    final suggestions = ref.watch(searchSuggestionsProvider(_query));
+    final suggestions = ref.watch(searchSuggestionsProvider(_controller.text));
 
     return Scaffold(
       appBar: AppBar(
@@ -268,19 +330,31 @@ final recipesAsync = useAllRecipes
                           child: TextField(
                             autofocus: true,
                             controller: _controller,
-                            onChanged: (text) {
+                            textInputAction: TextInputAction.search,
+                            onSubmitted: (value) {
+                              FocusScope.of(context).unfocus();
                               setState(() {
-                                _query = text;
-                                _showSuggestions = text.isNotEmpty;
+                                _submittedQuery = value.trim();
+                                _showSuggestions = false;
                               });
                             },
-                            onSubmitted: (_) => _submitSearch(),
+                            onChanged: (_) {
+                              setState(() {
+                                _showSuggestions = _controller.text.isNotEmpty;
+                              });
+                            },
                             decoration: InputDecoration(
                               hintText: "Rezept suchen...",
                               prefixIcon: const Icon(Icons.search),
                               suffixIcon: IconButton(
                                 icon: const Icon(Icons.arrow_forward),
-                                onPressed: _submitSearch,
+                                onPressed: () {
+                                  FocusScope.of(context).unfocus();
+                                  setState(() {
+                                    _submittedQuery = _controller.text.trim();
+                                    _showSuggestions = false;
+                                  });
+                                },
                               ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -313,8 +387,8 @@ final recipesAsync = useAllRecipes
                               : '${_selectedCategoryIds.length} Kategorien',
                         ),
                         onPressed: categoriesAsync.isLoading
-                        ? null
-                        : () => _openCategoryDialog(categoriesAsync),
+                            ? null
+                            : () => openCategoryDialog(categoriesAsync),
                       ),
                       const SizedBox(width: 8),
 
@@ -325,77 +399,37 @@ final recipesAsync = useAllRecipes
                       ),
                     ],
                   ),
-                  Expanded(
-                    child: recipesAsync.when(
-                      data: (recipes) {
-                        if (recipes.isEmpty) {
-                          return const Center(
-                            child: Text("Keine Ergebnisse gefunden"),
-                          );
-                        }
+                Expanded(
+                  child: FutureBuilder(
+                    future: _fetchRecipesRealtime(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
 
-                        final sortedRecipes = List.from(recipes);
-
-                        switch (_sortMode) {
-                          case SortMode.alphabeticalAsc:
-                            sortedRecipes.sort((a, b) => a.name.compareTo(b.name));
-                            break;
-
-                          case SortMode.alphabeticalDesc:
-                            sortedRecipes.sort((a, b) => b.name.compareTo(a.name));
-                            break;
-
-                          case SortMode.newestFirst:
-                            sortedRecipes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-                            break;
-
-                          case SortMode.oldestFirst:
-                            sortedRecipes.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-                            break;
-
-                          case SortMode.ratingDesc:
-                            sortedRecipes.sort((a, b) => b.avgRating.compareTo(a.avgRating));
-                            break;
-
-                          case SortMode.ratingAsc:
-                            sortedRecipes.sort((a, b) => a.avgRating.compareTo(b.avgRating));
-                            break;
-
-                          case SortMode.prepTimeAsc:
-                            sortedRecipes.sort(
-                              (a, b) => a.preparationTime.compareTo(b.preparationTime),
-                            );
-                            break;
-
-                          case SortMode.prepTimeDesc:
-                            sortedRecipes.sort(
-                              (a, b) => b.preparationTime.compareTo(a.preparationTime),
-                            );
-                            break;
-
-                          case SortMode.none:
-                            break;
-
-                        }
-
-
-                        return ListView.builder(
-                          itemCount: sortedRecipes.length,
-                          itemBuilder: (context, index) {
-                            return _RecipeCard(recipe: sortedRecipes[index]);
-                          },
+                      if (!snapshot.hasData ||
+                          (snapshot.data as List).isEmpty) {
+                        return const Center(
+                          child: Text("Keine Ergebnisse gefunden"),
                         );
-                      },
-                      loading: () =>
-                          const Center(child: CircularProgressIndicator()),
-                      error: (error, stack) =>
-                          Center(child: Text("Fehler: $error")),
-                    ),
-                  ),
-                ],
-              ),
+                      }
 
-            if (_query.isNotEmpty && _showSuggestions)
+                      final recipes = snapshot.data as List<Recipe>;
+                      final sortedRecipes = _applySorting(recipes);
+
+                      return ListView.builder(
+                        itemCount: sortedRecipes.length,
+                        itemBuilder: (context, index) {
+                          return _RecipeCard(recipe: sortedRecipes[index]);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+
+            if (_controller.text.isNotEmpty && _showSuggestions)
               Positioned(
                 left: 0,
                 right: 0,
@@ -417,9 +451,9 @@ final recipesAsync = useAllRecipes
                             onTap: () {
                               setState(() {
                                 _controller.text = suggestion;
-                                _query = suggestion;
+                                _submittedQuery = suggestion;
+                                _showSuggestions = false;
                               });
-                              _submitSearch();
                             },
                           );
                         }).toList(),
@@ -433,9 +467,10 @@ final recipesAsync = useAllRecipes
           ],
         ),
       ),
-    ); 
+    );
   }
 }
+
 class _RecipeCard extends StatelessWidget {
   final Recipe recipe;
 
@@ -446,19 +481,19 @@ class _RecipeCard extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () {
-        if (recipe.id == null) return;  
+        if (recipe.id == null) return;
         context.push('/recipes/${recipe.id}');
       },
       child: Card(
         elevation: 4,
         margin: const EdgeInsets.only(bottom: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Row(
           children: [
             ClipRRect(
-              borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
+              borderRadius: const BorderRadius.horizontal(
+                left: Radius.circular(12),
+              ),
               child: _buildRecipeImage(recipe.imageUrl),
             ),
             const SizedBox(width: 12),
@@ -486,7 +521,11 @@ class _RecipeCard extends StatelessWidget {
                           style: const TextStyle(fontSize: 13),
                         ),
                         const SizedBox(width: 12),
-                        const Icon(Icons.bar_chart, size: 16, color: Colors.grey),
+                        const Icon(
+                          Icons.bar_chart,
+                          size: 16,
+                          color: Colors.grey,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           recipe.difficulty,
@@ -507,7 +546,7 @@ class _RecipeCard extends StatelessWidget {
                   ],
                 ),
               ),
-            )
+            ),
           ],
         ),
       ),
@@ -522,11 +561,7 @@ Widget _buildRecipeImage(String? imageUrl) {
       height: 120,
       color: Colors.grey.shade200,
       alignment: Alignment.center,
-      child: const Icon(
-        Icons.restaurant,
-        size: 40,
-        color: Colors.grey,
-      ),
+      child: const Icon(Icons.restaurant, size: 40, color: Colors.grey),
     );
   }
 
@@ -541,11 +576,7 @@ Widget _buildRecipeImage(String? imageUrl) {
         height: 120,
         color: Colors.grey.shade200,
         alignment: Alignment.center,
-        child: const Icon(
-          Icons.restaurant,
-          size: 40,
-          color: Colors.grey,
-        ),
+        child: const Icon(Icons.restaurant, size: 40, color: Colors.grey),
       );
     },
   );

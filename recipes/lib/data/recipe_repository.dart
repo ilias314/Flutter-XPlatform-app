@@ -7,7 +7,6 @@ class RecipeRepository {
 
   RecipeRepository(this._client);
 
-  /// Fetch all available categories
   Future<List<RecipeCategory>> getCategories() async {
     final data = await _client
         .from('categories')
@@ -38,7 +37,6 @@ class RecipeRepository {
     }
   }
 
-  /// Main function to save a new recipe and its ingredients
   Future<void> createRecipe({
     required String userId,
     required String name,
@@ -56,7 +54,6 @@ class RecipeRepository {
     double sugar = 0.0,
     double fiber = 0.0,
   }) async {
-    // --- STEP 1: Insert the Recipe ---
     final recipeResponse = await _client
         .from('recipes')
         .insert({
@@ -81,7 +78,6 @@ class RecipeRepository {
 
     final String newRecipeId = recipeResponse['id'];
 
-    // --- STEP 2: Process Ingredients ---
     for (var item in ingredients) {
       final String ingName = item['name'];
       final double quantity = (item['quantity'] as num).toDouble();
@@ -99,7 +95,6 @@ class RecipeRepository {
       });
     }
 
-    // --- STEP 3: Link Categories to Recipe ---
     if (categoryIds.isNotEmpty) {
       final categoryLinks = categoryIds
           .map(
@@ -114,7 +109,6 @@ class RecipeRepository {
     }
   }
 
-  /// Helper: Checks if ingredient exists. If yes, returns ID. If no, creates it and returns new ID.
   Future<String> _getOrCreateIngredientId(
     String name,
     String defaultUnit,
@@ -138,7 +132,6 @@ class RecipeRepository {
     return newIngredient['id'];
   }
 
-  /// Helper: Fetch all recipes for the Home Screen with categories
   Future<List<Recipe>> getRecipes() async {
     final data = await _client
         .from('recipes')
@@ -155,7 +148,6 @@ class RecipeRepository {
     return data.map((json) => Recipe.fromJson(json)).toList();
   }
 
-  /// Fetch recipes filtered by category names
   Future<List<Recipe>> getRecipesByCategories(
     List<String> categoryNames,
   ) async {
@@ -163,7 +155,6 @@ class RecipeRepository {
       return getRecipes();
     }
 
-    // First get category IDs from names
     final categoryData = await _client
         .from('categories')
         .select('id')
@@ -175,7 +166,6 @@ class RecipeRepository {
       return [];
     }
 
-    // Then get recipes that have these categories
     final recipeLinks = await _client
         .from('recipe_categories')
         .select('recipe_id')
@@ -190,7 +180,6 @@ class RecipeRepository {
       return [];
     }
 
-    // Finally fetch the full recipe data
     final data = await _client
         .from('recipes')
         .select('''
@@ -207,8 +196,6 @@ class RecipeRepository {
     return data.map((json) => Recipe.fromJson(json)).toList();
   }
 
-  /// Fetch ingredients for a specific recipe
-  /// Returns a list like: [{'name': 'Tomato', 'quantity': 2.0, 'unit': 'pcs'}
   Future<List<Map<String, dynamic>>> getRecipeIngredients(
     String recipeId,
   ) async {
@@ -242,7 +229,6 @@ class RecipeRepository {
     }
   }
 
-  /// Aktualisiert ein bestehendes Rezept (nur eigenes Rezept!)
   Future<void> updateRecipe({
     required String recipeId,
     required String userId,
@@ -280,13 +266,10 @@ class RecipeRepository {
         .eq('id', recipeId)
         .eq('user_id', userId);
 
-    //  Alte Zutaten löschen
     await _client.from('recipe_ingredients').delete().eq('recipe_id', recipeId);
 
-    //  Alte Kategorien löschen
     await _client.from('recipe_categories').delete().eq('recipe_id', recipeId);
 
-    //  Zutaten neu speichern
     for (final item in ingredients) {
       if ((item['name'] as String).isEmpty) continue;
 
@@ -303,7 +286,6 @@ class RecipeRepository {
       });
     }
 
-    //  Kategorien neu speichern
     if (categoryIds.isNotEmpty) {
       await _client
           .from('recipe_categories')
@@ -315,7 +297,6 @@ class RecipeRepository {
     }
   }
 
-  /// Löscht ein Rezept (nur eigenes Rezept!)
   Future<void> deleteRecipe(String recipeId, String userId) async {
     await _client
         .from('recipes')

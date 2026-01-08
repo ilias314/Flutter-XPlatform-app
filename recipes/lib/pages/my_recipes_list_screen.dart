@@ -5,13 +5,14 @@ import 'package:recipes/models/recipe.dart';
 import 'package:recipes/providers/home_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/recipe_repository.dart';
-import 'package:recipes/widgets/recipe_card.dart'; 
+import 'package:recipes/widgets/recipe_card.dart';
 
-class MyRecipesListScreen extends ConsumerStatefulWidget  {
+class MyRecipesListScreen extends ConsumerStatefulWidget {
   const MyRecipesListScreen({super.key});
 
   @override
-  ConsumerState<MyRecipesListScreen> createState() => _MyRecipesListScreenState();
+  ConsumerState<MyRecipesListScreen> createState() =>
+      _MyRecipesListScreenState();
 }
 
 class _MyRecipesListScreenState extends ConsumerState<MyRecipesListScreen> {
@@ -59,15 +60,14 @@ class _MyRecipesListScreenState extends ConsumerState<MyRecipesListScreen> {
           return GridView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: recipes.length,
-            
-            // ✅ FIX: Responsive Grid
+
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 250, // Keep cards small & clean on Desktop
-              childAspectRatio: 0.75, 
+              maxCrossAxisExtent: 250,
+              childAspectRatio: 0.75,
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
             ),
-            
+
             itemBuilder: (context, index) {
               final recipe = recipes[index];
 
@@ -107,7 +107,7 @@ class _MyRecipesListScreenState extends ConsumerState<MyRecipesListScreen> {
                 title: const Text('Rezept bearbeiten'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  context.push('/edit-recipe', extra: recipe); 
+                  context.push('/edit-recipe', extra: recipe);
                 },
               ),
 
@@ -167,9 +167,9 @@ class _MyRecipesListScreenState extends ConsumerState<MyRecipesListScreen> {
     ref.invalidate(allRecipesProvider);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Rezept gelöscht')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Rezept gelöscht')));
     }
   }
 }

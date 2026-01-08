@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:recipes/models/ingredient.dart'; 
+import 'package:recipes/models/ingredient.dart';
 
 class IngredientInputField extends StatelessWidget {
-  final IngredientInput ingredient; 
+  final IngredientInput ingredient;
   final VoidCallback onDelete;
   final ValueChanged<String> onQuantityChanged;
   final ValueChanged<String> onUnitChanged;
@@ -24,14 +24,15 @@ class IngredientInputField extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          
           Expanded(
             flex: 2,
             child: TextFormField(
-              initialValue: ingredient.quantity > 0 ? ingredient.quantity.toString() : '',
+              initialValue: ingredient.quantity > 0
+                  ? ingredient.quantity.toString()
+                  : '',
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'Menge', 
+                labelText: 'Menge',
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
@@ -40,7 +41,6 @@ class IngredientInputField extends StatelessWidget {
           ),
           const SizedBox(width: 8),
 
-          
           Expanded(
             flex: 2,
             child: TextFormField(
@@ -67,7 +67,7 @@ class IngredientInputField extends StatelessWidget {
               onChanged: onNameChanged,
             ),
           ),
-          
+
           IconButton(
             icon: const Icon(Icons.delete_outline, color: Colors.red),
             onPressed: onDelete,

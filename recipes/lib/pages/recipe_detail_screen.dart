@@ -14,7 +14,6 @@ import 'package:share_plus/share_plus.dart';
 import 'package:go_router/go_router.dart';
 
 class RecipeDetailScreen extends ConsumerStatefulWidget {
-  // We accept the ID string now, not the full object
   final String recipeId;
 
   const RecipeDetailScreen({super.key, required this.recipeId});
@@ -31,16 +30,13 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   bool _isVisible = true;
   double _userRating = 0.0;
 
-  // State for portions
   int _currentPortions = 1;
 
-  // Controllers
   final TextEditingController _commentController = TextEditingController();
   List<RecipeComment> _comments = [];
   @override
   void initState() {
     super.initState();
-    // 1. Start fetching the recipe immediately
     _recipeFuture = _fetchRecipe();
     _fetchComments();
     _scrollController.addListener(_scrollListener);
@@ -115,13 +111,11 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     return recipe;
   }
 
-  // Calculate ingredient amount based on portions
   double _calculateAmount(double baseAmount, int originalPortions) {
     if (originalPortions == 0) return baseAmount;
     return (baseAmount / originalPortions) * _currentPortions;
   }
 
-  // 2. Add a method to fetch comments from Supabase
   Future<void> _fetchComments() async {
     final response = await Supabase.instance.client
         .from('comments')
@@ -232,7 +226,6 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   }
 
   Future<void> _handleAddToWeeklyPlan() async {
-    // A. Datumsauswahl anzeigen
     final DateTime? pickedDate = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
@@ -271,14 +264,12 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     List<Map<String, dynamic>> ingredients,
     int originalPortions,
   ) async {
-    // Liste für die ausgewählten Zutaten
     List<Map<String, dynamic>> selectedIngredients = List.from(ingredients);
 
     await showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
-          // notwendig, um den Zustand innerhalb des Dialogs zu verwalten
           builder: (context, setDialogState) {
             return AlertDialog(
               title: const Text("Zutaten auswählen"),
@@ -316,7 +307,6 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                 ElevatedButton(
                   onPressed: () async {
                     try {
-                      // Speichern der ausgewählten Zutaten in der Einkaufsliste
                       final ingredientsToSave = selectedIngredients
                           .map(
                             (ing) => {
@@ -374,17 +364,14 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
       body: FutureBuilder<Recipe>(
         future: _recipeFuture,
         builder: (context, snapshot) {
-          // A. Loading State
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // B. Error State
           if (snapshot.hasError) {
             return Center(child: Text("Fehler: ${snapshot.error}"));
           }
 
-          // C. Data Ready
           if (!snapshot.hasData) {
             return const Center(child: Text("Rezept nicht gefunden."));
           }
@@ -394,10 +381,8 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
           return CustomScrollView(
             controller: _scrollController,
             slivers: <Widget>[
-              // 1. App Bar with Image
               _buildSliverAppBar(context, r),
 
-              // 2. Details Body
               SliverList(
                 delegate: SliverChildListDelegate([
                   Padding(
@@ -409,7 +394,6 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                         const SizedBox(height: 20),
                         _buildNutritionSection(context, r),
                         const SizedBox(height: 30),
-                        // Pass the recipe portions to helper
                         _buildIngredientsAndPortions(context, r.portions),
                         const SizedBox(height: 30),
                         _buildActionButtons(context, r),
@@ -429,8 +413,6 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
       ),
     );
   }
-
-  // --- WIDGET BUILDERS ---
 
   Widget _buildRatingStars(BuildContext context) {
     return Row(
@@ -460,12 +442,11 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   }
 
   Widget _buildSliverAppBar(BuildContext context, Recipe r) {
-    final isFav = ref.watch(favoritesProvider).any((fav) => fav.id == r.id);
+    final isFav = ref.watch(favoritesProvider).contains(r.id);
     return SliverAppBar(
       expandedHeight: 250.0,
       pinned: true,
       stretch: true,
-      // Back button needs to be visible on top of image
       leading: Container(
         margin: const EdgeInsets.all(8),
         decoration: const BoxDecoration(
@@ -484,7 +465,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
             color: isFav ? Colors.red : Colors.white,
           ),
           onPressed: () {
-            ref.read(favoritesProvider.notifier).toggleFavorite(r);
+            ref.read(favoritesProvider.notifier).toggleFavorite(r.id!);
           },
         ),
         IconButton(
@@ -630,7 +611,6 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Ingredients List
         Expanded(
           flex: 2,
           child: Column(
@@ -644,7 +624,6 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
               ),
               const SizedBox(height: 10),
 
-              // We check if the future is initialized
               if (_ingredientsFuture == null)
                 const LinearProgressIndicator()
               else
@@ -666,7 +645,6 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                       itemCount: ingredients.length,
                       itemBuilder: (context, index) {
                         final ing = ingredients[index];
-                        // Calculate dynamic amount based on _currentPortions vs originalPortions
                         final double amount = _calculateAmount(
                           ing['quantity'] ?? 0.0,
                           originalPortions,
@@ -691,7 +669,6 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
         ),
         const SizedBox(width: 20),
 
-        // Portion Calculator
         Expanded(
           flex: 1,
           child: Column(
@@ -735,12 +712,9 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     );
   }
 
-  /// Erstellt die Buttons zum Speichern der Einkaufsliste und Hinzufügen zum Wochenplan.
   Widget _buildActionButtons(BuildContext context, Recipe r) {
-    // ... (unveränderte Logik)
     return Column(
       children: [
-        // Button: Einkaufsliste speichern
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
@@ -748,7 +722,6 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
               if (_ingredientsFuture != null) {
                 final ingredients = await _ingredientsFuture;
                 if (ingredients != null && mounted) {
-                  // Speichern der ausgewählten Zutaten in der Einkaufsliste
                   _showIngredientSelectionDialog(ingredients, r.portions);
                 }
               }
@@ -767,7 +740,6 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
         ),
         const SizedBox(height: 15),
 
-        // Button: Wochenplan hinzufügen
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(

@@ -15,19 +15,13 @@ class AppBottomNavBar extends StatelessWidget {
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
       currentIndex: currentIndex,
-      // FIX: We simply pass the index back to the parent (MainScaffold)
-      // The parent will decide which screen to show.
-      onTap: onTapped, 
-      
-      // Your custom colors can go here if needed
-      selectedItemColor: Theme.of(context).primaryColor, 
+      onTap: onTapped,
+
+      selectedItemColor: Theme.of(context).primaryColor,
       unselectedItemColor: Colors.grey,
 
       items: const <BottomNavigationBarItem>[
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home),
-          label: 'Home',
-        ),
+        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
         BottomNavigationBarItem(
           icon: Icon(Icons.calendar_month),
           label: 'Wochenplan',
@@ -40,10 +34,7 @@ class AppBottomNavBar extends StatelessWidget {
           icon: Icon(Icons.shopping_cart),
           label: 'Einkaufsliste',
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person),
-          label: 'Profil',
-        ),
+        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
       ],
     );
   }

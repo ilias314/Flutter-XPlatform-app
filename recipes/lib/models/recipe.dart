@@ -3,7 +3,7 @@ class Recipe {
   final String name;
   final String? imageUrl;
   final int preparationTime;
-  final String difficulty; // 'Einfach', 'Mittel', 'Schwer'
+  final String difficulty; 
   final double calories;
   final double protein;
   final double carbs;
@@ -15,7 +15,6 @@ class Recipe {
   double avgRating;
   final DateTime createdAt;
 
-  // Changed from single category to list of categories
   final List<String> categories;
 
   Recipe({
@@ -38,14 +37,12 @@ class Recipe {
   });
 
   factory Recipe.fromJson(Map<String, dynamic> json) {
-    // Parse categories from the JOIN result
     List<String> categoryList = [];
     if (json['recipe_categories'] != null) {
       final catData = json['recipe_categories'];
       if (catData is List) {
         categoryList = catData
             .map((item) {
-              // Handle nested structure from Supabase JOIN
               if (item['categories'] != null &&
                   item['categories']['name'] != null) {
                 return item['categories']['name'] as String;

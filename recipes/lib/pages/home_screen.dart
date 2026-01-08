@@ -4,10 +4,11 @@ import 'package:go_router/go_router.dart';
 import 'package:recipes/providers/home_provider.dart';
 import 'package:recipes/widgets/ui_utils.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:recipes/data/recipe_repository.dart'; 
-import 'package:recipes/models/recipe.dart'; 
-import 'package:recipes/widgets/recipe_card.dart'; 
-import 'package:recipes/data/profile_repository.dart'; 
+import 'package:recipes/data/recipe_repository.dart';
+import 'package:recipes/models/recipe.dart';
+import 'package:recipes/widgets/recipe_card.dart';
+import 'package:recipes/data/profile_repository.dart';
+import '../models/allRecipes.dart';
 
 class StartseitePages extends ConsumerStatefulWidget {
   const StartseitePages({super.key});
@@ -17,9 +18,7 @@ class StartseitePages extends ConsumerStatefulWidget {
 }
 
 class _StartseitePagesState extends ConsumerState<StartseitePages> {
-  
-  // Default preference until loaded from DB
-  String _userDietaryPreference = "Alles"; 
+  String _userDietaryPreference = "Alles";
 
   @override
   void initState() {
@@ -27,7 +26,6 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
     _loadUserPreference();
   }
 
-  // Load the saved preference from Supabase
   Future<void> _loadUserPreference() async {
     final profile = await ref.read(profileRepositoryProvider).getProfile();
     if (profile != null && profile['dietary_preferences'] != null) {
@@ -49,8 +47,8 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
       appBar: AppBar(
         title: const Text('RecipeS'),
         titleTextStyle: const TextStyle(
-          color: Colors.orange, 
-          fontSize: 24, 
+          color: Colors.orange,
+          fontSize: 24,
           fontWeight: FontWeight.bold,
         ),
         centerTitle: true,
@@ -67,7 +65,7 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
           ),
         ],
       ),
-      
+
       body: recipesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stack) => Center(child: Text('Fehler: $error')),
@@ -76,38 +74,31 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
             return const Center(child: Text('Noch keine Rezepte vorhanden.'));
           }
 
-          // ============================================================
-          // 1. NEUESTE REZEPTE (Top 10 Newest)
-          // ============================================================
           final newestRecipes = List<Recipe>.from(allRecipes);
           newestRecipes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           final newestSection = newestRecipes.take(10).toList();
 
-          // ============================================================
-          // 2. FÜR DICH AUSGEWÄHLT (Based on User Dietary Preference)
-          // ============================================================
           List<Recipe> dietRecipes;
 
           if (_userDietaryPreference == "Alles") {
-            // Show all recipes sorted by rating
             dietRecipes = List.from(allRecipes);
             dietRecipes.sort((a, b) => b.avgRating.compareTo(a.avgRating));
           } else {
-            // Filter by category - check if recipe has the matching category
             dietRecipes = allRecipes.where((recipe) {
-              // Check if any of the recipe's categories match the user preference
-              bool hasMatch = recipe.categories.any((cat) => 
-                cat.toLowerCase() == _userDietaryPreference.toLowerCase()
+              bool hasMatch = recipe.categories.any(
+                (cat) =>
+                    cat.toLowerCase() == _userDietaryPreference.toLowerCase(),
               );
-              
+
               if (hasMatch) {
-                print('✅ Recipe "${recipe.name}" matches $_userDietaryPreference (categories: ${recipe.categories})');
+                print(
+                  '✅ Recipe "${recipe.name}" matches $_userDietaryPreference (categories: ${recipe.categories})',
+                );
               }
-              
+
               return hasMatch;
             }).toList();
-            
-            // Sort by rating
+
             dietRecipes.sort((a, b) => b.avgRating.compareTo(a.avgRating));
           }
 
@@ -116,28 +107,23 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
           print('📊 Matching recipes: ${dietRecipes.length}');
           final dietSection = dietRecipes.take(10).toList();
 
-          // ============================================================
-          // 3. TOP DER WOCHE (Created this week, sorted by Rating)
-          // ============================================================
           final now = DateTime.now();
           final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
           final endOfWeek = startOfWeek.add(const Duration(days: 7));
 
           final weekRecipes = allRecipes.where((r) {
-            return r.createdAt.isAfter(startOfWeek) && r.createdAt.isBefore(endOfWeek);
+            return r.createdAt.isAfter(startOfWeek) &&
+                r.createdAt.isBefore(endOfWeek);
           }).toList();
-          
+
           weekRecipes.sort((a, b) => b.avgRating.compareTo(a.avgRating));
           final topWeekSection = weekRecipes.take(10).toList();
-
-          // ============================================================
-          // 4. TOP DES MONATS (Created this month, sorted by Rating)
-          // ============================================================
           final startOfMonth = DateTime(now.year, now.month, 1);
           final endOfMonth = DateTime(now.year, now.month + 1, 0);
 
           final monthRecipes = allRecipes.where((r) {
-            return r.createdAt.isAfter(startOfMonth) && r.createdAt.isBefore(endOfMonth);
+            return r.createdAt.isAfter(startOfMonth) &&
+                r.createdAt.isBefore(endOfMonth);
           }).toList();
 
           monthRecipes.sort((a, b) => b.avgRating.compareTo(a.avgRating));
@@ -147,18 +133,22 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
             child: Column(
               children: <Widget>[
                 const SizedBox(height: 20),
-                
-                // 1. NEUESTE
-                _buildRealRecipeSection(context, 'Neueste Rezepte', newestSection),
-                
+
+                _buildRealRecipeSection(
+                  context,
+                  'Neueste Rezepte',
+                  newestSection,
+                  AllRecipesMode.newest,
+                ),
+
                 const SizedBox(height: 10),
 
-                // 2. FÜR DICH (DIET) - Show message if no matches
                 if (dietSection.isNotEmpty)
                   _buildRealRecipeSection(
-                    context, 
-                    'Für dich ausgewählt${_userDietaryPreference != "Alles" ? " ($_userDietaryPreference)" : ""}', 
-                    dietSection
+                    context,
+                    'Für dich ausgewählt${_userDietaryPreference != "Alles" ? " ($_userDietaryPreference)" : ""}',
+                    dietSection,
+                    AllRecipesMode.diet,
                   )
                 else if (_userDietaryPreference != "Alles")
                   Padding(
@@ -168,11 +158,18 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
                         padding: const EdgeInsets.all(16.0),
                         child: Column(
                           children: [
-                            Icon(Icons.info_outline, size: 48, color: Colors.grey[600]),
+                            Icon(
+                              Icons.info_outline,
+                              size: 48,
+                              color: Colors.grey[600],
+                            ),
                             const SizedBox(height: 8),
                             Text(
                               'Keine $_userDietaryPreference Rezepte gefunden',
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             const SizedBox(height: 4),
                             Text(
@@ -185,19 +182,27 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
                       ),
                     ),
                   ),
-                
+
                 const SizedBox(height: 10),
 
-                // 3. TOP WOCHE
                 if (topWeekSection.isNotEmpty)
-                  _buildRealRecipeSection(context, 'Top der Woche', topWeekSection),
+                  _buildRealRecipeSection(
+                    context,
+                    'Top der Woche',
+                    topWeekSection,
+                    AllRecipesMode.topWeek,
+                  ),
 
                 const SizedBox(height: 10),
 
-                // 4. TOP MONAT
                 if (topMonthSection.isNotEmpty)
-                  _buildRealRecipeSection(context, 'Top des Monats', topMonthSection),
-                
+                  _buildRealRecipeSection(
+                    context,
+                    'Top des Monats',
+                    topMonthSection,
+                    AllRecipesMode.topMonth,
+                  ),
+
                 const SizedBox(height: 40),
               ],
             ),
@@ -207,7 +212,12 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
     );
   }
 
-  Widget _buildRealRecipeSection(BuildContext context, String title, List<Recipe> recipes) {
+  Widget _buildRealRecipeSection(
+    BuildContext context,
+    String title,
+    List<Recipe> recipes,
+    AllRecipesMode mode,
+  ) {
     if (recipes.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -221,19 +231,27 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
               Text(
                 title,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
               ),
               TextButton(
-                onPressed: () => showNotImplementedSnackbar(context),
+                onPressed: () {
+                  context.push(
+                    '/all-recipes',
+                    extra: AllRecipesArgs(
+                      mode: mode,
+                      dietPreference: _userDietaryPreference,
+                    ),
+                  );
+                },
                 child: const Text('Alle'),
               ),
             ],
           ),
         ),
         SizedBox(
-          height: 260, 
+          height: 260,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -241,9 +259,9 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
             itemBuilder: (context, index) {
               final recipe = recipes[index];
               return Container(
-                width: 200, 
+                width: 200,
                 margin: const EdgeInsets.symmetric(horizontal: 6),
-                child: RecipeCard(recipe: recipe), 
+                child: RecipeCard(recipe: recipe),
               );
             },
           ),

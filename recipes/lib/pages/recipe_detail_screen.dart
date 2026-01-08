@@ -7,8 +7,6 @@ import 'package:recipes/providers/favorites_provider.dart';
 import 'package:recipes/providers/home_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:recipes/models/recipe.dart';
-import 'package:recipes/data/recipe_repository.dart';
-import 'package:recipes/widgets/ui_utils.dart';
 import 'package:recipes/data/weekly_plan_repository.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:go_router/go_router.dart';

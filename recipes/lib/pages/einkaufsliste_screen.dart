@@ -39,7 +39,7 @@ class _EinkaufslisteScreenState extends ConsumerState<EinkaufslisteScreen> {
         });
       }
     } catch (e) {
-      debugPrint("Erreur de chargement: $e");
+      debugPrint("Error loading: $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -85,7 +85,7 @@ class _EinkaufslisteScreenState extends ConsumerState<EinkaufslisteScreen> {
       });
       _fetchItems();
     } catch (e) {
-      debugPrint("Erreur suppression: $e");
+      debugPrint("Error deleting: $e");
     }
   }
 

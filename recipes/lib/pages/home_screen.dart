@@ -2,9 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:recipes/providers/home_provider.dart';
-import 'package:recipes/widgets/ui_utils.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:recipes/data/recipe_repository.dart';
 import 'package:recipes/models/recipe.dart';
 import 'package:recipes/widgets/recipe_card.dart';
 import 'package:recipes/data/profile_repository.dart';
@@ -90,21 +87,12 @@ class _StartseitePagesState extends ConsumerState<StartseitePages> {
                     cat.toLowerCase() == _userDietaryPreference.toLowerCase(),
               );
 
-              if (hasMatch) {
-                print(
-                  '✅ Recipe "${recipe.name}" matches $_userDietaryPreference (categories: ${recipe.categories})',
-                );
-              }
-
               return hasMatch;
             }).toList();
 
             dietRecipes.sort((a, b) => b.avgRating.compareTo(a.avgRating));
           }
 
-          print('🍽️ User preference: $_userDietaryPreference');
-          print('📊 Total recipes: ${allRecipes.length}');
-          print('📊 Matching recipes: ${dietRecipes.length}');
           final dietSection = dietRecipes.take(10).toList();
 
           final now = DateTime.now();

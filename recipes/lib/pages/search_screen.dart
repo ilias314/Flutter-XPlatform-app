@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/search_provider.dart';
 import '../providers/search_suggestions_provider.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/categories_provider.dart';
 import '../models/category.dart';
-import '../providers/home_provider.dart';
 import '../models/recipe.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 

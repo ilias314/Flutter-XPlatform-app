@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:recipes/models/recipe.dart';
 import 'package:recipes/pages/home_screen.dart';
-import 'package:recipes/widgets/ui_utils.dart';
 import 'package:recipes/widgets/weekly_recipe_card.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:recipes/main_scaffold.dart';

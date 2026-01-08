@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:recipes/models/recipe.dart';
 import 'package:recipes/providers/favorites_provider.dart';
-import 'package:recipes/widgets/ui_utils.dart';
 
 class RecipeCard extends ConsumerWidget {
   final Recipe recipe;

@@ -30,7 +30,7 @@ class ImageUploadService {
       return imageUrl;
       
     } catch (e) {
-      print('❌ Profile Upload Error: $e');
+      print('Profile Upload Error: $e');
       throw Exception('Upload fehlgeschlagen: $e');
     }
   }

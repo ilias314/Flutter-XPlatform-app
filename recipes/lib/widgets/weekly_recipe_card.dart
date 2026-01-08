@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:recipes/pages/recipe_detail_screen.dart';
-import 'package:recipes/widgets/ui_utils.dart';
 import '../models/recipe.dart';
 
 class WochenplanRecipeCard extends StatelessWidget {

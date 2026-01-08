@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/recipe.dart';
 
 final favoritesProvider = StateNotifierProvider<FavoritesNotifier, Set<String>>(
   (ref) {

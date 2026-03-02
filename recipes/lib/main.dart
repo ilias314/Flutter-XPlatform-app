@@ -3,14 +3,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'router.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  await dotenv.load(fileName: ".env");
   await Supabase.initialize(
-    url: 'https://usfrnaywpgtfgqodzqsn.supabase.co',
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzZnJuYXl3cGd0Zmdxb2R6cXNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwMzY2OTUsImV4cCI6MjA4MDYxMjY5NX0.Hjd7exAONRd9zMj_s24oqHqSB6Wr1MNSM3dWB7dEDNI',
+    url: dotenv.env['SUPABASE_URL'] ?? '',
+    anonKey: dotenv.env['SUPABASE_PUNLISHABLE_KEY'] ?? '',
   );
 
   runApp(const ProviderScope(child: MyApp()));
